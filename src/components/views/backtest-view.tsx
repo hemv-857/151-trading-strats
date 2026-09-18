@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -262,6 +262,33 @@ export function BacktestView() {
                 </ChartContainer>
               </Card>
 
+              {/* Monthly returns heatmap + return distribution */}
+              <div className="grid lg:grid-cols-2 gap-4">
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.CalendarRange className="h-3.5 w-3.5 text-primary" /> Monthly Returns
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Performance by calendar month</p>
+                    </div>
+                  </div>
+                  <MonthlyHeatmap equity={result.equity} />
+                </Card>
+
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.BarChart3 className="h-3.5 w-3.5 text-primary" /> Return Distribution
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Daily strategy returns histogram</p>
+                    </div>
+                  </div>
+                  <ReturnDistribution equity={result.equity} />
+                </Card>
+              </div>
+
               {/* Trades table */}
               {result.trades.length > 0 && (
                 <Card className="p-4">
@@ -343,6 +370,201 @@ function MetricsGrid({ metrics }: { metrics: BacktestResult["metrics"] }) {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+// Monthly returns heatmap — classic performance attribution viz
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function MonthlyHeatmap({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    // Group equity by year-month and compute monthly returns
+    const monthly: Record<string, { year: number; month: number; start: number; end: number }> = {};
+    for (let i = 0; i < equity.length; i++) {
+      const d = new Date(equity[i].date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!monthly[key]) monthly[key] = { year: d.getFullYear(), month: d.getMonth(), start: equity[i].equity, end: equity[i].equity };
+      monthly[key].end = equity[i].equity;
+    }
+    // Compute returns; carry over last equity of prev month as start
+    const sorted = Object.values(monthly).sort((a, b) => a.year - b.year || a.month - b.month);
+    // Use equity at start of each month = end of previous month (or first equity for first month)
+    const returns: { year: number; month: number; ret: number | null }[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const cur = sorted[i];
+      const prevEnd = i > 0 ? sorted[i - 1].end : cur.start;
+      const ret = prevEnd > 0 ? cur.end / prevEnd - 1 : null;
+      returns.push({ year: cur.year, month: cur.month, ret });
+    }
+    // Build year → month matrix
+    const years = [...new Set(returns.map((r) => r.year))].sort();
+    return { years, returns };
+  }, [equity]);
+
+  if (data.years.length === 0) return <div className="text-xs text-muted-foreground">No monthly data</div>;
+
+  // Find max abs return for color scaling
+  const maxAbs = Math.max(...data.returns.map((r) => Math.abs(r.ret ?? 0)), 0.001);
+
+  function colorFor(ret: number | null): string {
+    if (ret === null) return "var(--muted)";
+    const intensity = Math.min(Math.abs(ret) / maxAbs, 1);
+    if (ret >= 0) {
+      // green with intensity
+      const alpha = 0.15 + intensity * 0.7;
+      return `oklch(0.72 0.17 155 / ${alpha.toFixed(2)})`;
+    }
+    const alpha = 0.15 + intensity * 0.7;
+    return `oklch(0.65 0.22 25 / ${alpha.toFixed(2)})`;
+  }
+
+  // Compute yearly totals
+  const yearTotals: Record<number, number> = {};
+  for (const r of data.returns) {
+    if (r.ret === null) continue;
+    yearTotals[r.year] = (yearTotals[r.year] ?? 1) * (1 + r.ret) - 1;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto scrollbar-terminal">
+        <table className="w-full text-[10px] font-mono tnum border-collapse">
+          <thead>
+            <tr>
+              <th className="text-left px-1.5 py-1 text-muted-foreground font-semibold w-12">Year</th>
+              {MONTHS.map((m) => (
+                <th key={m} className="px-1 py-1 text-muted-foreground font-semibold text-center">{m}</th>
+              ))}
+              <th className="px-1.5 py-1 text-muted-foreground font-semibold text-right">YTD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.years.map((year) => {
+              const ytd = yearTotals[year] ?? 0;
+              return (
+                <tr key={year}>
+                  <td className="px-1.5 py-1 text-muted-foreground font-semibold">{year}</td>
+                  {MONTHS.map((_, mIdx) => {
+                    const entry = data.returns.find((r) => r.year === year && r.month === mIdx);
+                    const ret = entry?.ret;
+                    return (
+                      <td key={mIdx} className="p-0.5 text-center">
+                        <div
+                          className="h-6 rounded-sm flex items-center justify-center text-[9px] font-semibold transition-transform hover:scale-110 cursor-default"
+                          style={{ backgroundColor: colorFor(ret) }}
+                          title={ret !== null && ret !== undefined ? `${year} ${MONTHS[mIdx]}: ${(ret * 100).toFixed(2)}%` : ""}
+                        >
+                          {ret !== null && ret !== undefined ? `${ret >= 0 ? "+" : ""}${(ret * 100).toFixed(1)}` : "—"}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className={cn("px-1.5 py-1 text-right font-bold", ytd >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {ytd >= 0 ? "+" : ""}{(ytd * 100).toFixed(1)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1">
+        <div className="flex items-center gap-1.5">
+          <span>Worst</span>
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.65 0.22 25 / 0.85)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.65 0.22 25 / 0.4)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "var(--muted)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.72 0.17 155 / 0.4)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.72 0.17 155 / 0.85)" }} />
+          <span>Best</span>
+        </div>
+        <span>Click a cell for details</span>
+      </div>
+    </div>
+  );
+}
+
+// Return distribution histogram
+function ReturnDistribution({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    if (equity.length < 2) return { bins: [], stats: null };
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push(equity[i].equity / equity[i - 1].equity - 1);
+    }
+    const min = Math.min(...returns);
+    const max = Math.max(...returns);
+    const numBins = 21;
+    const width = (max - min) / numBins || 0.001;
+    const bins = Array.from({ length: numBins }, (_, i) => ({
+      bin: i,
+      lower: min + i * width,
+      upper: min + (i + 1) * width,
+      count: 0,
+    }));
+    for (const r of returns) {
+      let idx = Math.floor((r - min) / width);
+      if (idx >= numBins) idx = numBins - 1;
+      if (idx < 0) idx = 0;
+      bins[idx].count++;
+    }
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
+    return { bins, stats: { mean, std, min, max, n: returns.length } };
+  }, [equity]);
+
+  if (!data.stats) return <div className="text-xs text-muted-foreground">No return data</div>;
+
+  const maxCount = Math.max(...data.bins.map((b) => b.count));
+
+  return (
+    <div className="space-y-2">
+      <ChartContainer config={{ count: { label: "Freq", color: "var(--primary)" } }} className="aspect-[2/1] w-full">
+        <BarChart data={data.bins} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis
+            dataKey="lower"
+            tick={{ fontSize: 9 }}
+            tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+            stroke="var(--muted-foreground)"
+            interval="preserveStartEnd"
+            minTickGap={20}
+          />
+          <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={28} />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(_v: any, _n: any, item: any) => {
+              const p = item?.payload;
+              return [`${p.count} days (${((p.lower * 100)).toFixed(2)}% to ${(p.upper * 100).toFixed(2)}%)`, "Bucket"];
+            }}
+            labelFormatter={() => ""}
+          />
+          <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+            {data.bins.map((b, i) => {
+              const mid = (b.lower + b.upper) / 2;
+              const isPos = mid >= 0;
+              return <Cell key={i} fill={isPos ? "oklch(0.72 0.17 155 / 0.7)" : "oklch(0.65 0.22 25 / 0.7)"} />;
+            })}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+      <div className="grid grid-cols-4 gap-2 pt-1">
+        <Stat label="Mean" value={`${(data.stats.mean * 100).toFixed(3)}%`} tone="neutral" />
+        <Stat label="Std Dev" value={`${(data.stats.std * 100).toFixed(3)}%`} tone="neutral" />
+        <Stat label="Min" value={`${(data.stats.min * 100).toFixed(2)}%`} tone="bear" />
+        <Stat label="Max" value={`${(data.stats.max * 100).toFixed(2)}%`} tone="bull" />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone: "bull" | "bear" | "neutral" }) {
+  const color = tone === "bull" ? "text-emerald-400" : tone === "bear" ? "text-rose-400" : "text-amber-400";
+  return (
+    <div className="rounded-md bg-muted/30 px-2 py-1">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={cn("text-xs font-mono font-bold tnum", color)}>{value}</div>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as Icons from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { ASSET_CLASSES, TOTAL_STRATEGIES, getFeaturedStrategies, CATEGORY_COLORS, AssetClassId } from "@/lib/strategies-data";
+import { ASSET_CLASSES, TOTAL_STRATEGIES, getFeaturedStrategies, getStrategyById, CATEGORY_COLORS, AssetClassId } from "@/lib/strategies-data";
 import { StrategyCard } from "@/components/strategy-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,10 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Area, AreaChart, XAxis, YAxis, ReferenceLine } from "recharts";
 
 const STATS = [
-  { label: "Trading Strategies", value: 149, suffix: "", icon: "Layers", color: "text-emerald-400" },
+  { label: "Trading Strategies", value: 151, suffix: "", icon: "Layers", color: "text-emerald-400" },
   { label: "Asset Classes", value: 19, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
   { label: "Backtestable Models", value: 10, suffix: "", icon: "FlaskConical", color: "text-sky-400" },
-  { label: "Glossary Terms", value: 60, suffix: "+", icon: "BookMarked", color: "text-violet-400" },
+  { label: "Glossary Terms", value: 104, suffix: "", icon: "BookMarked", color: "text-violet-400" },
 ];
 
 const HERO_CHART = [
@@ -68,7 +68,7 @@ export function DashboardView() {
                 transition={{ duration: 0.4, delay: 0.05 }}
                 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.05] mb-3"
               >
-                Explore <span className="text-primary">149 Trading Strategies</span> across every asset class
+                Explore <span className="text-primary">151 Trading Strategies</span> across every asset class
               </motion.h1>
 
               <motion.p
@@ -251,6 +251,9 @@ export function DashboardView() {
         </div>
       </section>
 
+      {/* Recently viewed */}
+      <RecentlyViewedSection />
+
       {/* CTA strip */}
       <section className="px-4 sm:px-6 lg:px-8 py-8 border-t border-border">
         <Card className="relative overflow-hidden p-6 sm:p-8">
@@ -319,4 +322,55 @@ function AnimatedCounter({ value }: { value: number }) {
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return <span>{display.toLocaleString()}</span>;
+}
+
+function RecentlyViewedSection() {
+  const { recentlyViewed, openStrategy, setLibraryCategory } = useAppStore();
+  const strategies = recentlyViewed.map(getStrategyById).filter(Boolean) as NonNullable<ReturnType<typeof getStrategyById>>[];
+
+  if (strategies.length === 0) return null;
+
+  return (
+    <section className="px-4 sm:px-6 lg:px-8 py-8 border-t border-border">
+      <div className="flex items-end justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Icons.History className="h-4 w-4 text-cyan-400" /> Recently Viewed
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">Pick up where you left off</p>
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-x-auto scrollbar-terminal pb-2 -mx-1 px-1">
+        {strategies.map((s, i) => {
+          const colors = CATEGORY_COLORS[s.category as AssetClassId];
+          const ac = ASSET_CLASSES.find((a) => a.id === s.category)!;
+          const Icon = (Icons as any)[ac.icon] || Icons.Circle;
+          return (
+            <button
+              key={s.id}
+              onClick={() => openStrategy(s.id)}
+              className={cn(
+                "group shrink-0 w-64 text-left rounded-xl border bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
+                colors.border
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", colors.bg)}>
+                  <Icon className={cn("h-3.5 w-3.5", colors.text)} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[9px] text-muted-foreground tnum">{s.number}</span>
+                  </div>
+                  <h3 className="text-xs font-semibold leading-tight truncate">{s.name}</h3>
+                </div>
+                <span className="text-[9px] font-mono text-muted-foreground/60">#{i + 1}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{s.shortDesc}</p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
 }

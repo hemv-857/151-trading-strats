@@ -151,3 +151,51 @@ Unresolved issues / risks:
 - Strategy count is now 149 of the paper's ~151. The remaining 2 could be added in a future round.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add the final 2 strategies to reach the full 151; (b) add more glossary terms (the paper has 900+; we have 80); (c) add a monthly returns heatmap to the backtest view; (d) add keyboard shortcuts (e.g. '/' to focus search, number keys for nav); (e) add a "recently viewed" strategies section; (f) add export/share functionality for backtest results.
+
+---
+Task ID: 4 (cron review round 3)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–3; confirmed app had 149 strategies, 10 backtest strategies, 80 glossary terms, 7 views, drawdown chart, favorites, custom options builder.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added monthly returns heatmap + return distribution histogram to the Backtest Lab:
+  - `MonthlyHeatmap` component: groups equity by year-month, computes monthly returns, renders a year×month color-coded heatmap (green for gains, rose for losses, intensity-scaled). Includes a YTD column and a color legend. Cells scale 110% on hover with tooltips.
+  - `ReturnDistribution` component: bins daily strategy returns into 21 buckets, renders a histogram (green bars for positive bins, rose for negative) with a 4-stat summary (mean, std dev, min, max).
+  - Both added in a 2-column grid card between the drawdown chart and the trades table.
+- Phase 2 — Added recently-viewed strategies:
+  - Added `recentlyViewed` (capped at 8, most-recent-first) to the Zustand store, persisted via localStorage alongside favorites. The `openStrategy` action now records the view.
+  - Built a `RecentlyViewedSection` on the dashboard (between Featured Strategies and the CTA strip) — a horizontal scroll of compact strategy chips showing the icon, section #, name, and short desc. Only renders when there's history.
+- Phase 3 — Added keyboard shortcuts:
+  - Global keydown handler in `AppShell`: keys 1–7 switch to the 7 nav views; `/` focuses the library search; `?` toggles a shortcuts modal; `Esc` closes the detail drawer or modal. Skips when typing in inputs/textareas.
+  - Added a keyboard icon button (`?`) in the top bar that opens a `ShortcutsModal` Sheet showing all shortcuts + a quick-nav grid with numbered keys.
+- Phase 4 — Reached the full 151 strategies + expanded glossary + styling polish:
+  - Added 2 more distressed-asset strategies (Ch.15.2.1 "Planning a reorganization", Ch.15.2.2 "Buying outstanding debt") → total now 151, matching the paper's title.
+  - Added 24 more glossary terms (American/European options, assignment, exercise, open interest, VVIX, VIX term structure, vol carry, convexity, key rate duration, roll-down, repo rate, factor model, information ratio, tracking error, beta-adjusted return, PPP, CIP, FX risk reversal, contango/backwardation, convenience yield, hedging pressure, basis risk) → total now 104.
+  - Updated dashboard stats: "Trading Strategies: 151", "Glossary Terms: 104".
+  - Updated hero headline: "Explore 151 Trading Strategies".
+  - Updated about view descriptions to reflect the final counts.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count reached).
+  - Glossary term count: 104.
+  - SSR renders: "151 Trading Strategies", "Glossary Terms", "104", "Keyboard" (shortcuts button present).
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (MACD crossover, 600 bars) → 600 equity points (sufficient for monthly heatmap + distribution), maxDD 18.95%, Sharpe 0.29.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- Backtest Lab gained 2 new analytical charts: monthly returns heatmap (year×month color grid with YTD) + return distribution histogram (21 bins with mean/std/min/max stats).
+- New "Recently Viewed" section on the dashboard (horizontal scroll of viewed strategies, persisted across reloads).
+- Full keyboard shortcuts system: 1–7 for views, `/` for search, `?` for shortcuts modal, Esc to close.
+- Strategy dataset reached the full 151 (matching the paper's title) — added 2 distressed-asset strategies.
+- Glossary expanded 80 → 104 terms across 7 categories.
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The strategy dataset now matches the paper's full 151. The glossary has 104 of the paper's 900+ — could keep expanding.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add more glossary terms (toward 200+); (b) add a "compare backtests" feature (run 2 strategies side-by-side); (c) add a strategy-of-the-day random picker; (d) add export functionality (CSV/JSON for backtest results); (e) add a deep-link / share-permalink feature for strategies and backtest configs; (f) add an ACF/pACF chart for return autocorrelation analysis.

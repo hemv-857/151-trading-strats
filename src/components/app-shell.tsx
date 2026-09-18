@@ -12,6 +12,7 @@ import { StrategyDetailDrawer } from "@/components/strategy-detail-drawer";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -169,10 +170,53 @@ function SidebarContent() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { view } = useAppStore();
+  const { view, setView, closeDetail, detailOpen, setLibrarySearch } = useAppStore();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
 
   const currentNav = NAV_ITEMS.find((n) => n.id === view);
+
+  // Keyboard shortcuts
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      // Esc closes detail drawer or shortcuts modal
+      if (e.key === "Escape") {
+        if (detailOpen) { closeDetail(); return; }
+        if (shortcutsOpen) { setShortcutsOpen(false); return; }
+      }
+      // '?' toggles shortcuts modal (even when typing? no — only when not typing)
+      if (!typing && e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
+        return;
+      }
+      if (typing) return;
+      // Number keys 1-7 switch views
+      if (e.key >= "1" && e.key <= "7") {
+        const idx = Number(e.key) - 1;
+        if (idx < NAV_ITEMS.length) {
+          setView(NAV_ITEMS[idx].id);
+        }
+        return;
+      }
+      // '/' focuses the library search (switches to library first)
+      if (e.key === "/") {
+        e.preventDefault();
+        setView("library");
+        setTimeout(() => {
+          const input = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement | null;
+          input?.focus();
+          input?.select();
+        }, 60);
+        return;
+      }
+      // 'g' then 'd'/'l'/'b'/'o'/'c'/'g'/'a' = goto view (vim-style)
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [setView, closeDetail, detailOpen, shortcutsOpen, setLibrarySearch]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -202,6 +246,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-card text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+              title="Keyboard shortcuts (?)"
+            >
+              <Icons.Keyboard className="h-3 w-3" />
+              <kbd className="font-mono">?</kbd>
+            </button>
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/30 bg-emerald-500/5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 pulse-dot text-emerald-500" />
               <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wide">Sim Active</span>
@@ -240,7 +292,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
 
+      <ShortcutsModal open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <StrategyDetailDrawer />
     </div>
+  );
+}
+
+function ShortcutsModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { setView } = useAppStore();
+  const shortcuts: { keys: string; desc: string; action?: () => void }[] = [
+    { keys: "1–7", desc: "Switch to view 1–7 (Dashboard → About)" },
+    { keys: "/", desc: "Focus library search" },
+    { keys: "?", desc: "Toggle this shortcuts dialog" },
+    { keys: "Esc", desc: "Close drawer / dialog" },
+  ];
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+        <SheetHeader className="px-5 pt-5 pb-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+              <Icons.Keyboard className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Keyboard</div>
+              <div className="text-sm font-semibold">Shortcuts</div>
+            </div>
+          </div>
+        </SheetHeader>
+        <div className="px-5 py-4 space-y-2">
+          {shortcuts.map((s, i) => (
+            <div key={i} className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2">
+              <span className="text-xs text-foreground/80">{s.desc}</span>
+              <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted/60 border border-border text-foreground">{s.keys}</kbd>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-border">
+          <div className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">Quick nav</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {NAV_ITEMS.map((n, i) => {
+              const Icon = Icons[n.icon] as React.ComponentType<{ className?: string }>;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => { setView(n.id); onOpenChange(false); }}
+                  className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                >
+                  <Icon className="h-3 w-3" />
+                  <span className="flex-1 text-left truncate">{n.label}</span>
+                  <kbd className="font-mono text-[9px] text-muted-foreground/60">{i + 1}</kbd>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -78,7 +78,7 @@ export function AboutView() {
           <FeatureCard
             icon="Library"
             title="Strategy Library"
-            desc="Browse all 149 strategies with searchable filters by asset class, market view, type, risk and complexity. Each strategy includes its formula, key concepts, instruments, and max profit/loss."
+            desc="Browse all 151 strategies with searchable filters by asset class, market view, type, risk and complexity. Each strategy includes its formula, key concepts, instruments, and max profit/loss."
             action={() => { setLibraryCategory("all"); setView("library"); }}
             actionLabel="Open Library"
           />
@@ -99,7 +99,7 @@ export function AboutView() {
           <FeatureCard
             icon="BookMarked"
             title="Glossary"
-            desc="60+ curated quant finance definitions across 7 categories — from options Greeks to yield-curve trades. Searchable, expandable, with related-strategy links."
+            desc="104 curated quant finance definitions across 7 categories — from options Greeks to yield-curve trades. Searchable, expandable, with related-strategy links."
             action={() => setView("glossary")}
             actionLabel="Open Glossary"
           />

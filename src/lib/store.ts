@@ -9,6 +9,7 @@ interface AppState {
   detailOpen: boolean;
   compareList: string[];       // strategy ids in compare
   favorites: string[];         // strategy ids in favorites (persisted)
+  recentlyViewed: string[];   // strategy ids, most recent first (persisted)
   libraryCategory: string | "all";
   librarySearch: string;
   libraryFavoritesOnly: boolean;
@@ -21,6 +22,7 @@ interface AppState {
   toggleFavorite: (id: string) => void;
   removeFromFavorites: (id: string) => void;
   clearFavorites: () => void;
+  clearRecentlyViewed: () => void;
   setLibraryCategory: (c: string | "all") => void;
   setLibrarySearch: (s: string) => void;
   setLibraryFavoritesOnly: (b: boolean) => void;
@@ -34,11 +36,18 @@ export const useAppStore = create<AppState>()(
       detailOpen: false,
       compareList: [],
       favorites: [],
+      recentlyViewed: [],
       libraryCategory: "all",
       librarySearch: "",
       libraryFavoritesOnly: false,
       setView: (v) => set({ view: v }),
-      openStrategy: (id) => set({ selectedStrategyId: id, detailOpen: true }),
+      openStrategy: (id) =>
+        set((s) => ({
+          selectedStrategyId: id,
+          detailOpen: true,
+          // Track recently viewed: move to front, dedupe, cap at 8
+          recentlyViewed: [id, ...s.recentlyViewed.filter((x) => x !== id)].slice(0, 8),
+        })),
       closeDetail: () => set({ detailOpen: false }),
       toggleCompare: (id) =>
         set((s) => ({
@@ -58,6 +67,7 @@ export const useAppStore = create<AppState>()(
         })),
       removeFromFavorites: (id) => set((s) => ({ favorites: s.favorites.filter((x) => x !== id) })),
       clearFavorites: () => set({ favorites: [] }),
+      clearRecentlyViewed: () => set({ recentlyViewed: [] }),
       setLibraryCategory: (c) => set({ libraryCategory: c }),
       setLibrarySearch: (s) => set({ librarySearch: s }),
       setLibraryFavoritesOnly: (b) => set({ libraryFavoritesOnly: b }),
@@ -65,8 +75,8 @@ export const useAppStore = create<AppState>()(
     {
       name: "quant-terminal-storage",
       storage: createJSONStorage(() => (typeof window !== "undefined" ? localStorage : (undefined as any))),
-      // Only persist favorites (not view state, not transient UI state)
-      partialize: (s) => ({ favorites: s.favorites }),
+      // Persist favorites + recently viewed
+      partialize: (s) => ({ favorites: s.favorites, recentlyViewed: s.recentlyViewed }),
     }
   )
 );

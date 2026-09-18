@@ -124,6 +124,32 @@ export const GLOSSARY: GlossaryTerm[] = [
   { term: "Risk-Neutral Valuation", category: "options", definition: "The principle that option prices can be computed by discounting expected payoffs under a risk-neutral measure (where the drift = risk-free rate)." },
   { term: "No-Arbitrage", category: "options", definition: "The foundational assumption that two portfolios with identical payoffs must have the same price. The basis for all derivative pricing." },
   { term: "Put-Call Parity", category: "options", definition: "The identity: C − P = S − K·e^(-rT). Relates call, put, stock, and bond prices. Violations create arbitrage (box spread)." },
+
+  // ---------- ADDITIONAL TERMS ----------
+  { term: "American Option", category: "options", definition: "An option that can be exercised at any time up to and including the expiration date. More valuable than the European equivalent due to early-exercise flexibility." },
+  { term: "European Option", category: "options", definition: "An option that can only be exercised at expiration. Simpler to price (closed-form Black-Scholes); less flexible than American." },
+  { term: "Assignment", category: "options", definition: "The process by which a short option holder is notified that the buyer has exercised. A short call assignee must deliver the underlying; a short put assignee must buy it." },
+  { term: "Exercise", category: "options", definition: "The act of the option buyer invoking their right to buy (call) or sell (put) the underlying at the strike price. Most equity options auto-exercise if ITM at expiration." },
+  { term: "Open Interest", category: "options", definition: "The total number of outstanding option contracts that have not been closed or exercised. A measure of liquidity and positioning." },
+  { term: "Volatility of Volatility (VVIX)", category: "volatility", definition: "The volatility of the VIX index itself — a 'vol of vol' measure. High VVIX = the market's expectation of vol itself is unstable." },
+  { term: "VIX Term Structure", category: "volatility", definition: "The curve of VIX futures prices across expirations. Typically in contango (later > earlier); flips to backwardation in stress. Traded via VIX futures calendar spreads.", relatedStrategy: "vix-futures-basis" },
+  { term: "Volatility Carry", category: "volatility", definition: "The return from being short volatility when implied exceeds realized. Harvested via short options or short variance swaps; subject to crash risk.", relatedStrategy: "volatility-carry-etn" },
+  { term: "Convexity", category: "fixed-income", definition: "The curvature in the price-yield relationship. Bonds with positive convexity gain more when yields fall than they lose when yields rise — an asymmetric, favorable property." },
+  { term: "Key Rate Duration", category: "fixed-income", definition: "Sensitivity of a bond's price to a 1bp change at a specific point on the yield curve (holding other points constant). A more granular measure than effective duration." },
+  { term: "Roll-Down", category: "fixed-income", definition: "The price appreciation as a bond 'rolls down' an upward-sloping yield curve toward its maturity. A component of fixed-income carry.", relatedStrategy: "roll-down-yield-curve" },
+  { term: "Repo Rate", category: "fixed-income", definition: "The interest rate on a repurchase agreement — the implied cost of borrowing cash against collateral. A key short-term funding rate." },
+  { term: "Factor Model", category: "stocks", definition: "A model that decomposes asset returns into exposures to common factors (market, size, value, momentum) plus idiosyncratic noise. The basis of factor investing." },
+  { term: "Information Ratio", category: "risk", definition: "Active return divided by tracking error. Measures the consistency of outperformance vs a benchmark. The 'skill' ratio for active managers." },
+  { term: "Tracking Error", category: "risk", definition: "The standard deviation of the difference between a portfolio's return and its benchmark's return. Measures how closely the portfolio follows the benchmark." },
+  { term: "Beta-Adjusted Return", category: "risk", definition: "Return adjusted for the portfolio's beta exposure. Isolates alpha from market-directional P&L." },
+  { term: "Purchasing Power Parity (PPP)", category: "macro", definition: "The theory that exchange rates should adjust to equalize the price of identical goods across countries. Long-run anchor for FX; violated in the short run." },
+  { term: "Covered Interest Parity (CIP)", category: "macro", definition: "The no-arbitrage condition linking spot FX, forward FX, and interest rates: the forward premium equals the interest differential. Deviations (the 'cross-currency basis') signal funding stress." },
+  { term: "Risk Reversal (FX)", category: "macro", definition: "In FX markets, the difference between the implied vol of an OTM call and an OTM put of the same delta. A standard market quote reflecting skew." },
+  { term: "Open Interest", category: "trading", definition: "The total number of outstanding futures or options contracts not yet closed or delivered. A measure of market commitment and liquidity." },
+  { term: "Contango / Backwardation", category: "trading", definition: "Contango: futures curve where later contracts are pricier (cost of carry). Backwardation: later contracts are cheaper (scarcity). Drives roll yield for long/short futures.", relatedStrategy: "roll-yields" },
+  { term: "Convenience Yield", category: "trading", definition: "The non-monetary benefit of holding a physical commodity (e.g. ability to use in production). Explains backwardation in commodity curves." },
+  { term: "Hedging Pressure", category: "trading", definition: "The net positioning of commercial hedgers in commodity futures (from CFTC COT data). Used as a contrarian signal — commercials tend to be informed." },
+  { term: "Basis Risk", category: "trading", definition: "The risk that the price of a hedge does not move in lockstep with the underlying exposure. The residual risk after an imperfect hedge." },
 ];
 
 export function searchGlossary(query: string): GlossaryTerm[] {
