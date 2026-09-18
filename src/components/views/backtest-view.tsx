@@ -77,10 +77,22 @@ export function BacktestView() {
             <h2 className="text-lg font-semibold">{def.name}</h2>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">{def.description}</p>
           </div>
-          <Button onClick={runBacktest} disabled={loading} className="gap-2 shrink-0">
-            {loading ? <Icons.Loader2 className="h-4 w-4 animate-spin" /> : <Icons.Play className="h-4 w-4" />}
-            {loading ? "Running…" : "Run Backtest"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button onClick={runBacktest} disabled={loading} className="gap-2">
+              {loading ? <Icons.Loader2 className="h-4 w-4 animate-spin" /> : <Icons.Play className="h-4 w-4" />}
+              {loading ? "Running…" : "Run Backtest"}
+            </Button>
+            {result && (
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => exportCSV(result)} className="gap-1.5 h-9" title="Export equity curve as CSV">
+                  <Icons.FileSpreadsheet className="h-3.5 w-3.5" /> CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => exportJSON(result)} className="gap-1.5 h-9" title="Export full result as JSON">
+                  <Icons.FileJson className="h-3.5 w-3.5" /> JSON
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -111,7 +123,41 @@ export function BacktestView() {
               </div>
 
               <div className="pt-3 border-t border-border">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-3 px-1">Parameters</div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Parameters</div>
+                  <button
+                    onClick={() => { const init: Record<string, number> = {}; for (const p of def.params) init[p.key] = p.default; setParams(init); toast("Reset to defaults"); }}
+                    className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1"
+                    title="Reset to defaults"
+                  >
+                    <Icons.RotateCcw className="h-2.5 w-2.5" /> Reset
+                  </button>
+                </div>
+                {/* Quick presets — apply a regime to bars/drift/vol */}
+                <div className="mb-3 px-1">
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1.5">Quick Regime</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {([
+                      { label: "Trending", patch: { drift: 0.15, volatility: 0.12 }, icon: "TrendingUp", tone: "text-emerald-400" },
+                      { label: "Volatile", patch: { drift: 0.05, volatility: 0.35 }, icon: "Activity", tone: "text-rose-400" },
+                      { label: "Range-bound", patch: { drift: 0.0, volatility: 0.15 }, icon: "Minus", tone: "text-amber-400" },
+                      { label: "Bearish", patch: { drift: -0.12, volatility: 0.25 }, icon: "TrendingDown", tone: "text-rose-400" },
+                    ] as const).map((preset) => {
+                      const PIcon = Icons[preset.icon as keyof typeof Icons] as React.ComponentType<{ className?: string }>;
+                      return (
+                        <button
+                          key={preset.label}
+                          onClick={() => setParams((prev) => ({ ...prev, ...preset.patch }))}
+                          className="flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                          title={`Apply ${preset.label.toLowerCase()} regime`}
+                        >
+                          <PIcon className={cn("h-2.5 w-2.5", preset.tone)} />
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {def.params.map((p) => (
                     <div key={p.key} className="px-1">
@@ -567,4 +613,41 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: "bul
       <div className={cn("text-xs font-mono font-bold tnum", color)}>{value}</div>
     </div>
   );
+}
+
+// Export helpers
+function downloadBlob(content: string, filename: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV(result: BacktestResult) {
+  const header = "date,equity,benchmark,position\n";
+  const rows = result.equity.map((e) =>
+    `${e.date},${e.equity.toFixed(2)},${e.benchmark.toFixed(2)},${e.position}`
+  ).join("\n");
+  const metrics = `\n\n# Metrics\n# totalReturn,${(result.metrics.totalReturn * 100).toFixed(4)}%\n# sharpe,${result.metrics.sharpe.toFixed(4)}\n# sortino,${result.metrics.sortino.toFixed(4)}\n# maxDrawdown,${(result.metrics.maxDrawdown * 100).toFixed(4)}%\n# volatility,${(result.metrics.volatility * 100).toFixed(4)}%\n# winRate,${(result.metrics.winRate * 100).toFixed(2)}%\n# numTrades,${result.metrics.numTrades}\n# calmar,${result.metrics.calmar.toFixed(4)}\n`;
+  downloadBlob(header + rows + metrics, `backtest-${result.strategyId}-${Date.now()}.csv`, "text/csv");
+  toast.success("CSV exported");
+}
+
+function exportJSON(result: BacktestResult) {
+  const out = {
+    strategyId: result.strategyId,
+    strategyName: result.strategyName,
+    params: result.params,
+    metrics: result.metrics,
+    equity: result.equity,
+    trades: result.trades,
+    exportedAt: new Date().toISOString(),
+  };
+  downloadBlob(JSON.stringify(out, null, 2), `backtest-${result.strategyId}-${Date.now()}.json`, "application/json");
+  toast.success("JSON exported");
 }

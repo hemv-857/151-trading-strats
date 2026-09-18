@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as Icons from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { ASSET_CLASSES, TOTAL_STRATEGIES, getFeaturedStrategies, getStrategyById, CATEGORY_COLORS, AssetClassId } from "@/lib/strategies-data";
+import { ASSET_CLASSES, TOTAL_STRATEGIES, getFeaturedStrategies, getStrategyById, STRATEGIES, CATEGORY_COLORS, AssetClassId } from "@/lib/strategies-data";
 import { StrategyCard } from "@/components/strategy-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ const STATS = [
   { label: "Trading Strategies", value: 151, suffix: "", icon: "Layers", color: "text-emerald-400" },
   { label: "Asset Classes", value: 19, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
   { label: "Backtestable Models", value: 10, suffix: "", icon: "FlaskConical", color: "text-sky-400" },
-  { label: "Glossary Terms", value: 104, suffix: "", icon: "BookMarked", color: "text-violet-400" },
+  { label: "Glossary Terms", value: 181, suffix: "", icon: "BookMarked", color: "text-violet-400" },
 ];
 
 const HERO_CHART = [
@@ -176,6 +176,9 @@ export function DashboardView() {
           </motion.div>
         </div>
       </section>
+
+      {/* Strategy of the Day */}
+      <StrategyOfDaySection />
 
       {/* Asset class grid */}
       <section className="px-4 sm:px-6 lg:px-8 py-8">
@@ -371,6 +374,67 @@ function RecentlyViewedSection() {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function StrategyOfDaySection() {
+  const { openStrategy } = useAppStore();
+  // Deterministic "strategy of the day" — changes daily based on date
+  const strategy = React.useMemo(() => {
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    const idx = dayOfYear % STRATEGIES.length;
+    return STRATEGIES[idx];
+  }, []);
+
+  const colors = CATEGORY_COLORS[strategy.category as AssetClassId];
+  const ac = ASSET_CLASSES.find((a) => a.id === strategy.category)!;
+  const Icon = (Icons as any)[ac.icon] || Icons.Circle;
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  return (
+    <section className="px-4 sm:px-6 lg:px-8 py-6 border-t border-border">
+      <Card className={cn("relative overflow-hidden p-5 sm:p-6", colors.border)}>
+        <div className={cn("absolute inset-0 opacity-30 pointer-events-none", colors.bg)} />
+        <div className="relative flex flex-col sm:flex-row items-start gap-5">
+          <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-xl", colors.bg)}>
+            <Icon className={cn("h-7 w-7", colors.text)} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <Badge variant="outline" className={cn("gap-1", colors.text, colors.border)}>
+                <Icons.Sparkles className="h-2.5 w-2.5" /> Strategy of the Day
+              </Badge>
+              <span className="text-[10px] text-muted-foreground font-mono">{today}</span>
+              <span className="text-[10px] text-muted-foreground">·</span>
+              <span className={cn("text-[10px] uppercase tracking-wide font-medium", colors.text)}>{ac.name}</span>
+              <span className="font-mono text-[10px] text-muted-foreground">§{strategy.number}</span>
+            </div>
+            <h2 className="text-xl font-bold mb-1.5">{strategy.name}</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3 max-w-3xl">{strategy.description}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              {strategy.keyConcepts.slice(0, 4).map((c) => (
+                <Badge key={c} variant="secondary" className="text-[10px] bg-muted/60">{c}</Badge>
+              ))}
+            </div>
+            <button
+              onClick={() => openStrategy(strategy.id)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Icons.BookOpen className="h-3.5 w-3.5" /> View Full Details
+              <Icons.ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+          {strategy.formula && (
+            <div className="w-full sm:w-64 shrink-0 rounded-lg border border-border bg-card/60 px-3 py-2">
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1">
+                <Icons.Sigma className="h-2.5 w-2.5" /> Formula
+              </div>
+              <div className="font-mono text-[11px] text-foreground/90 break-words">{strategy.formula}</div>
+            </div>
+          )}
+        </div>
+      </Card>
     </section>
   );
 }

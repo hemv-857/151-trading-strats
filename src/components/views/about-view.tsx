@@ -99,7 +99,7 @@ export function AboutView() {
           <FeatureCard
             icon="BookMarked"
             title="Glossary"
-            desc="104 curated quant finance definitions across 7 categories — from options Greeks to yield-curve trades. Searchable, expandable, with related-strategy links."
+            desc="181 curated quant finance definitions across 7 categories — from options Greeks to yield-curve trades. Searchable, expandable, with related-strategy links."
             action={() => setView("glossary")}
             actionLabel="Open Glossary"
           />

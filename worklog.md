@@ -199,3 +199,48 @@ Unresolved issues / risks:
 - The strategy dataset now matches the paper's full 151. The glossary has 104 of the paper's 900+ — could keep expanding.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add more glossary terms (toward 200+); (b) add a "compare backtests" feature (run 2 strategies side-by-side); (c) add a strategy-of-the-day random picker; (d) add export functionality (CSV/JSON for backtest results); (e) add a deep-link / share-permalink feature for strategies and backtest configs; (f) add an ACF/pACF chart for return autocorrelation analysis.
+
+---
+Task ID: 5 (cron review round 4)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–4; confirmed app had 151 strategies, 10 backtest strategies, 104 glossary terms, 7 views, monthly heatmap, return distribution, recently-viewed, keyboard shortcuts.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added backtest export + parameter quick-presets:
+  - Added CSV and JSON export buttons to the Backtest Lab header (appear when a result exists). CSV exports the equity curve + a metrics summary block; JSON exports the full result (params, metrics, equity, trades). Both use a `downloadBlob` helper. Toast confirms export.
+  - Added a "Quick Regime" preset row in the parameters panel: 4 buttons (Trending, Volatile, Range-bound, Bearish) that apply a drift+volatility regime to the current strategy. Each has a colored icon. Plus a "Reset" link to restore defaults.
+- Phase 2 — Added Strategy of the Day to the dashboard:
+  - Built `StrategyOfDaySection` — picks a deterministic strategy based on the day-of-year (changes daily, stable within a day). Renders a prominent card with the strategy's icon, category badge, full description, top 4 key concepts, formula (if present), and a "View Full Details" button that opens the detail drawer. Tinted with the strategy's category color.
+  - Placed between the hero/stats section and the asset class grid.
+- Phase 3 — Expanded glossary 104 → 181 terms:
+  - Added 77 new terms across all 7 categories: 22 options terms (American/European exercise, ATM/ITM/OTM, bear/bull spreads, calendar/diagonal/vertical spreads, condor, credit/debit spread, delta hedging, iron butterfly, leg, naked option, ratio spread, risk reversal, spread, strangle, synthetic, wings, etc.); 6 volatility terms (CBOE, vol contango/backwardation, vol-of-vol, skewness, kurtosis); 11 fixed-income terms (accrued interest, barbell, bullet, clean/dirty price, duration matching, ladder, maturity, par, YTM, zero-coupon); 9 stocks terms (cross-sectional, time-series, SUE, Fama-French, idiosyncratic, SMB, HML, quality, investment factor); 10 risk terms (correlation, covariance, drawdown duration, efficient frontier, leverage, liquidity risk, MPT, recovery factor, risk parity, tail risk); 6 macro terms (base currency, cross rate, currency peg, forward points, inflation swap, TIPS); 12 trading terms (ask, bid, dark pool, fill, front-running, market impact, order book, position sizing, rebalance, toxic flow, VWAP, whipsaw).
+  - Updated dashboard stat: "Glossary Terms: 181".
+  - Updated about view glossary feature card description.
+- Phase 4 — Styling polish:
+  - Export buttons styled as outline variants with file icons.
+  - Quick-regime preset buttons with colored icons matching each regime's tone.
+  - Strategy of the Day card tinted with the strategy's category color, prominent layout with formula sidebar.
+  - Reset button in parameters panel with rotate-ccw icon.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 181 (up from 104).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "181".
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (MACD crossover, 500 bars) → 500 equity points, Sharpe 0.43, 33 trades.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- Backtest Lab gained CSV + JSON export buttons and 4 quick-regime preset buttons (Trending/Volatile/Range-bound/Bearish) + a Reset link.
+- New "Strategy of the Day" section on the dashboard — deterministic daily picker with prominent tinted card, formula, key concepts, and a CTA.
+- Glossary expanded 104 → 181 terms across 7 categories (77 new terms covering options structures, vol metrics, bond mechanics, factor model terms, risk metrics, FX/macro, and execution concepts).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 181 of the paper's 900+ — could keep expanding toward 250+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add more glossary terms (toward 250+); (b) add a "compare backtests" feature (run 2 strategies side-by-side in the backtest view); (c) add an ACF/autocorrelation chart for return analysis; (d) add a deep-link / share-permalink feature (URL hash for strategies + backtest configs); (e) add a "trending strategies" section based on most-viewed across sessions; (f) add a strategy-relationship graph (which strategies relate to which, by shared concepts).
