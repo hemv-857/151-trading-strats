@@ -222,22 +222,39 @@ export function OptionsView() {
 
               {/* Payoff diagram */}
               <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 gap-2">
                   <div>
                     <h3 className="text-sm font-semibold flex items-center gap-1.5">
                       <Icons.AreaChart className="h-3.5 w-3.5 text-primary" /> Payoff at Expiry
                     </h3>
                     <p className="text-[11px] text-muted-foreground">P&amp;L as a function of underlying price at expiry</p>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] font-mono">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Profit
                     </Badge>
                     <Badge variant="outline" className="gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Loss
                     </Badge>
+                    <div className="flex items-center gap-1 ml-1">
+                      <button
+                        onClick={() => exportChartSVG("payoff-chart", `payoff-${resp.strategy.id}-${Date.now()}.svg`)}
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                        title="Export chart as SVG"
+                      >
+                        <Icons.FileImage className="h-3 w-3" /> SVG
+                      </button>
+                      <button
+                        onClick={() => exportChartPNG("payoff-chart", `payoff-${resp.strategy.id}-${Date.now()}.png`)}
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                        title="Export chart as PNG"
+                      >
+                        <Icons.Image className="h-3 w-3" /> PNG
+                      </button>
+                    </div>
                   </div>
                 </div>
+                <div id="payoff-chart">
                 <ChartContainer config={chartConfig} className="aspect-[2/1] w-full">
                   <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
                     <defs>
@@ -273,6 +290,7 @@ export function OptionsView() {
                     <Area dataKey="payoff" type="monotone" stroke="var(--bull)" strokeWidth={2} fill="url(#profitFill)" />
                   </AreaChart>
                 </ChartContainer>
+                </div>
               </Card>
 
               {/* Greeks */}
@@ -515,4 +533,73 @@ function CustomLegEditor({ legs, setLegs, spot, vol, T, r }: {
       </div>
     </div>
   );
+}
+
+// Chart export helpers — serialize the Recharts SVG and download as SVG or PNG
+function getChartSVGString(containerId: string): string | null {
+  const container = document.getElementById(containerId);
+  if (!container) return null;
+  const svg = container.querySelector("svg");
+  if (!svg) return null;
+  // Clone and inline the background color
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("style", "background: #1a1a1f;");
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(clone);
+}
+
+function downloadString(content: string, filename: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportChartSVG(containerId: string, filename: string) {
+  const svg = getChartSVGString(containerId);
+  if (!svg) { toast.error("Could not find chart to export"); return; }
+  downloadString(svg, filename, "image/svg+xml");
+  toast.success("SVG exported");
+}
+
+function exportChartPNG(containerId: string, filename: string) {
+  const svgStr = getChartSVGString(containerId);
+  if (!svgStr) { toast.error("Could not find chart to export"); return; }
+  const svg = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svg);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const scale = 2; // retina-quality
+    const w = img.width.baseVal.value || 800;
+    const h = img.height.baseVal.value || 400;
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { toast.error("Canvas not supported"); return; }
+    ctx.fillStyle = "#1a1a1f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) { toast.error("PNG conversion failed"); return; }
+      const pngUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = pngUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(pngUrl);
+      toast.success("PNG exported");
+    }, "image/png");
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => { toast.error("Could not render chart to image"); URL.revokeObjectURL(url); };
+  img.src = url;
 }

@@ -335,18 +335,31 @@ export function BacktestView() {
                 </Card>
               </div>
 
-              {/* ACF (autocorrelation) chart */}
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                      <Icons.LineChart className="h-3.5 w-3.5 text-primary" /> Return Autocorrelation (ACF)
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground">Correlation of daily returns with their own lags — positive at lag 1 = momentum, negative = mean-reversion</p>
+              {/* ACF + pACF (autocorrelation) charts */}
+              <div className="grid lg:grid-cols-2 gap-4">
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.LineChart className="h-3.5 w-3.5 text-primary" /> ACF
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Autocorrelation — positive lag-1 = momentum</p>
+                    </div>
                   </div>
-                </div>
-                <ACFChart equity={result.equity} />
-              </Card>
+                  <ACFChart equity={result.equity} />
+                </Card>
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.GitBranch className="h-3.5 w-3.5 text-primary" /> pACF
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Partial autocorrelation — direct lag effect</p>
+                    </div>
+                  </div>
+                  <PACFChart equity={result.equity} />
+                </Card>
+              </div>
 
               {/* Trades table */}
               {result.trades.length > 0 && (
@@ -715,6 +728,84 @@ function ACFChart({ equity }: { equity: BacktestResult["equity"] }) {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1"><span className="h-2 w-3 bg-emerald-500/80 rounded-sm" /> Positive (momentum)</span>
           <span className="flex items-center gap-1"><span className="h-2 w-3 bg-rose-500/80 rounded-sm" /> Negative (reversion)</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-3 bg-muted rounded-sm" /> Within noise</span>
+        </div>
+        <span className="font-mono">95% CI: ±{data.ci.toFixed(3)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Partial autocorrelation function (pACF) via Durbin-Levinson recursion
+function PACFChart({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    if (equity.length < 30) return { pacf: [], ci: 0 };
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push(equity[i].equity / equity[i - 1].equity - 1);
+    }
+    const n = returns.length;
+    // First compute the ACF values up to maxLag
+    const mean = returns.reduce((a, b) => a + b, 0) / n;
+    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+    if (variance === 0) return { pacf: [], ci: 0 };
+    const maxLag = Math.min(30, Math.floor(n / 4));
+    const acfVals: number[] = [];
+    for (let lag = 1; lag <= maxLag; lag++) {
+      let sum = 0;
+      for (let i = 0; i < n - lag; i++) {
+        sum += (returns[i] - mean) * (returns[i + lag] - mean);
+      }
+      acfVals.push(sum / (variance * n));
+    }
+    // Durbin-Levinson recursion to get pacf from acf
+    // pacf[k] = phi[k][k] where phi is iteratively updated
+    const pacf: number[] = [];
+    let phi: number[] = [acfVals[0]];
+    pacf.push(acfVals[0]);
+    for (let k = 1; k < acfVals.length; k++) {
+      let sum = 0;
+      for (let j = 0; j < k; j++) {
+        sum += phi[j] * acfVals[k - 1 - j];
+      }
+      const newPacf = acfVals[k] - sum;
+      const newPhi: number[] = new Array(k + 1);
+      for (let j = 0; j < k; j++) {
+        newPhi[j] = phi[j] - newPacf * phi[k - 1 - j];
+      }
+      newPhi[k] = newPacf;
+      pacf.push(newPacf);
+      phi = newPhi;
+    }
+    const pacfData = pacf.map((v, i) => ({ lag: i + 1, pacf: v }));
+    const ci = 1.96 / Math.sqrt(n);
+    return { pacf: pacfData, ci };
+  }, [equity]);
+
+  if (data.pacf.length === 0) return <div className="text-xs text-muted-foreground">Insufficient data for pACF</div>;
+
+  return (
+    <div className="space-y-2">
+      <ChartContainer config={{ pacf: { label: "pACF", color: "var(--primary)" } }} className="aspect-[3/1] w-full">
+        <BarChart data={data.pacf} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis dataKey="lag" tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" tickFormatter={(v) => `${v}`} />
+          <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={36} domain={[-0.3, 0.3]} tickFormatter={(v) => v.toFixed(2)} />
+          <ChartTooltip content={<ChartTooltipContent />} formatter={(v: any) => [Number(v).toFixed(4), "pACF"]} labelFormatter={(l: any) => `Lag ${l}`} />
+          <ReferenceLine y={0} stroke="var(--border)" />
+          <ReferenceLine y={data.ci} stroke="var(--muted-foreground)" strokeDasharray="3 3" strokeOpacity={0.5} />
+          <ReferenceLine y={-data.ci} stroke="var(--muted-foreground)" strokeDasharray="3 3" strokeOpacity={0.5} />
+          <Bar dataKey="pacf" radius={[2, 2, 0, 0]}>
+            {data.pacf.map((d, i) => (
+              <Cell key={i} fill={Math.abs(d.pacf) > data.ci ? (d.pacf > 0 ? "oklch(0.72 0.17 155 / 0.8)" : "oklch(0.65 0.22 25 / 0.8)") : "var(--muted)"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="h-2 w-3 bg-emerald-500/80 rounded-sm" /> Positive</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-3 bg-rose-500/80 rounded-sm" /> Negative</span>
           <span className="flex items-center gap-1"><span className="h-2 w-3 bg-muted rounded-sm" /> Within noise</span>
         </div>
         <span className="font-mono">95% CI: ±{data.ci.toFixed(3)}</span>

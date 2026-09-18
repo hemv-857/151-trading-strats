@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { DashboardView } from "@/components/views/dashboard-view";
 import { LibraryView } from "@/components/views/library-view";
 import { BacktestView } from "@/components/views/backtest-view";
+import { BacktestCompareView } from "@/components/views/backtest-compare-view";
 import { OptionsView } from "@/components/views/options-view";
 import { CompareView } from "@/components/views/compare-view";
 import { GlossaryView } from "@/components/views/glossary-view";
@@ -19,6 +20,7 @@ export default function Home() {
       {view === "dashboard" && <DashboardView />}
       {view === "library" && <LibraryView />}
       {view === "backtest" && <BacktestView />}
+      {view === "backtest-compare" && <BacktestCompareView />}
       {view === "options" && <OptionsView />}
       {view === "compare" && <CompareView />}
       {view === "glossary" && <GlossaryView />}

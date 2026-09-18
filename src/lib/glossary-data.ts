@@ -293,6 +293,54 @@ export const GLOSSARY: GlossaryTerm[] = [
   { term: "Real Yield", category: "macro", definition: "Nominal yield − expected inflation. The real return a bondholder earns; negative real yields are a drag on real wealth." },
   { term: "Terms of Trade", category: "macro", definition: "A country's export prices / import prices. Improving terms of trade = currency tailwind." },
   { term: "Yield Curve Control (YCC)", category: "macro", definition: "A central-bank policy of pegging a specific yield (e.g. the BOJ's 10yr cap) via unlimited bond purchases." },
+
+  // ---------- ADDITIONAL TERMS (round 7) ----------
+  { term: "AR(1) Process", category: "risk", definition: "A first-order autoregressive process: x_t = φ·x_{t-1} + ε. The basis for modeling momentum (|φ|>0) vs mean-reversion (φ<0). pACF cuts off after lag 1." },
+  { term: "Box-Jenkins Method", category: "risk", definition: "A systematic approach to ARIMA time-series modeling: identification, estimation, diagnostics. Uses ACF/pACF to identify model order." },
+  { term: "Heteroskedasticity", category: "risk", definition: "Non-constant variance over time. Volatility clustering is a form of heteroskedasticity; modeled by ARCH/GARCH." },
+  { term: "Ljung-Box Test", category: "risk", definition: "A statistical test for whether any of a group of autocorrelations of a time series are different from zero. Used to check if returns have predictable structure." },
+  { term: "Stationarity", category: "risk", definition: "A time series with constant mean and variance over time. Returns are approximately stationary; prices are not (they have a unit root)." },
+  { term: "Unit Root", category: "risk", definition: "A stochastic trend in a time series (e.g. a random walk). Price series typically have a unit root; returns are stationary." },
+  { term: "White Noise", category: "risk", definition: "A time series of independent, identically distributed zero-mean random variables. Returns that are white noise cannot be predicted." },
+
+  { term: "Asian Option", category: "options", definition: "An option whose payoff depends on the AVERAGE price over a period, not the spot at expiry. Lower vol than vanilla; cheaper. Used in commodities." },
+  { term: "Barrier Option", category: "options", definition: "An option that activates (knock-in) or deactivates (knock-out) when the underlying crosses a barrier level. Cheaper than vanilla due to the barrier risk." },
+  { term: "Binary (Digital) Option", category: "options", definition: "An option that pays a fixed amount if ITM at expiry, zero otherwise. Effectively a bet on a specific outcome; all-or-nothing payoff." },
+  { term: "Cliquet Option", category: "options", definition: "A series of forward-start options that lock in gains periodically. Caps the period return; used in structured products to smooth payoffs." },
+  { term: "Compound Option", category: "options", definition: "An option on an option. E.g. a call on a call — pays to exercise into the underlying option. Two exercise dates." },
+  { term: "Lookback Option", category: "options", definition: "An option whose payoff depends on the max (call) or min (put) price over a period. Eliminates timing risk; expensive." },
+  { term: "Power Option", category: "options", definition: "An option whose payoff is a power of the underlying. Amplifies convexity and leverage; exotic structure." },
+  { term: "Shout Option", category: "options", definition: "An option where the holder can 'shout' once to lock in the intrinsic value at that point, retaining the right to a better payoff later." },
+
+  { term: "Basis Point (bp)", category: "fixed-income", definition: "One-hundredth of a percent (0.01%). Bond yield changes are typically quoted in basis points; e.g. a 25bp move = 0.25%." },
+  { term: "Convexity Bias", category: "fixed-income", definition: "The extra return (or cost) from holding positively-convex bonds due to the curvature of the price-yield relationship. Approx = ½ × convexity × Δy²." },
+  { term: "Day Count Convention", category: "fixed-income", definition: "The rule for computing accrued interest (e.g. Actual/360, 30/360). Affects the dirty price and yield calculations." },
+  { term: "Flat Yield Curve", category: "fixed-income", definition: "When yields are similar across maturities. Signals uncertainty about the growth/inflation outlook; less term premium." },
+  { term: "Implied Vol (FI)", category: "fixed-income", definition: "The volatility implied by swaption prices. A measure of expected rate moves; traded via swaption straddles." },
+  { term: "Roll-Down (FI)", category: "fixed-income", definition: "The price appreciation from a bond rolling toward maturity on an upward-sloping curve. A carry component for buy-and-hold investors." },
+  { term: "Steepener Trade", category: "fixed-income", definition: "A DV01-neutral position betting that the yield-curve spread (e.g. 2s-10s) will widen. Profits when long yields rise faster than short.", relatedStrategy: "yield-curve-spread" },
+
+  { term: "Beta Decomposition", category: "stocks", definition: "Splitting a portfolio's return into market (beta), factor, and idiosyncratic components. Reveals the sources of P&L." },
+  { term: "Crowding", category: "stocks", definition: "When many investors hold similar positions in a factor/strategy. Increases crash risk when they unwind together; e.g. the quant crisis of 2007." },
+  { term: "Factor Crowding", category: "stocks", definition: "Crowding specifically in a factor like value or momentum. Measured via aggregate positioning, valuations, and correlation among factor portfolios." },
+  { term: "Market-Cap Weighting", category: "stocks", definition: "Weighting stocks by their market capitalization. The standard index methodology (S&P 500, MSCI). Pro: low turnover. Con: concentrated in biggest stocks." },
+  { term: "Smart Beta", category: "stocks", definition: "Rule-based, factor-tilted indices (e.g. low-vol, momentum, value) that sit between passive market-cap and active. Cheaper than active." },
+  { term: "Stock-Specific Risk", category: "stocks", definition: "Idiosyncratic risk from a single stock (earnings miss, scandal). Diversifiable in large portfolios but material in concentrated ones." },
+
+  { term: "Beta-Adjusted Futures Hedge", category: "macro", definition: "Scaling a futures hedge by the beta of the underlying to the futures contract. E.g. hedge a high-beta stock with more futures than 1:1." },
+  { term: "Bond Convexity Hedging", category: "macro", definition: "Hedging the convexity exposure of a mortgage or callable-bond portfolio using Treasury futures or swaptions. Reduces P&L from curve shifts." },
+  { term: "Convenience Yield (Commodity)", category: "macro", definition: "The benefit of holding the physical commodity (e.g. ability to satisfy a production shortfall). Higher convenience = more backwardation." },
+  { term: "Cross-Currency Basis", category: "macro", definition: "The deviation from covered interest parity. Negative USD/JPY basis = USD funding scarcity; trades as a measure of bank funding stress." },
+  { term: "Dollar Index (DXY)", category: "macro", definition: "A trade-weighted index of USD vs EUR, JPY, GBP, CAD, SEK, CHF. The standard measure of broad USD strength/weakness." },
+  { term: "Oil Term Structure", category: "macro", definition: "The curve of oil futures prices. Backwardation (front > back) signals tight supply; contango signals oversupply. Drives roll yield." },
+
+  { term: "Execution Algorithm", category: "trading", definition: "A trading algorithm that breaks a large order into smaller pieces to minimize market impact. Examples: VWAP, TWAP, POV, implementation shortfall." },
+  { term: "Hot Hand Fallacy", category: "trading", definition: "The mistaken belief that past success predicts future success (in random processes). The basis for momentum may be partly behavioral." },
+  { term: "Implementation Shortfall", category: "trading", definition: "The total cost of executing a trade = (decision price − execution price) + opportunity cost. A comprehensive execution-cost metric." },
+  { term: "Latency Arbitrage", category: "trading", definition: "Exploiting tiny price discrepancies across venues faster than others can react. A form of toxic flow; requires low-latency infrastructure." },
+  { term: "POV (Percentage of Volume)", category: "trading", definition: "An execution algorithm that maintains a target % of market volume. Scales up in liquid markets, down in thin ones." },
+  { term: "Slippage Model", category: "trading", definition: "A model estimating the price impact of a trade as a function of order size, ADV, and volatility. Critical for realistic backtests." },
+  { term: "TWAP", category: "trading", definition: "Time-Weighted Average Price — an execution algorithm that slices an order evenly over a time window. Simpler than VWAP; doesn't need volume data." },
 ];
 
 export function searchGlossary(query: string): GlossaryTerm[] {

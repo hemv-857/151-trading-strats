@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", desc: "Overview & featured" },
   { id: "library", label: "Strategy Library", icon: "Library", desc: "Browse all strategies" },
   { id: "backtest", label: "Backtest Lab", icon: "FlaskConical", desc: "Run quantitative backtests" },
+  { id: "backtest-compare", label: "Compare Backtests", icon: "BarChart3", desc: "Side-by-side equity curves" },
   { id: "options", label: "Options Lab", icon: "LineChart", desc: "Payoff diagrams & greeks" },
   { id: "compare", label: "Compare", icon: "GitCompare", desc: "Side-by-side analysis" },
   { id: "glossary", label: "Glossary", icon: "BookMarked", desc: "Quant finance definitions" },
@@ -193,8 +194,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
       if (typing) return;
-      // Number keys 1-7 switch views
-      if (e.key >= "1" && e.key <= "7") {
+      // Number keys 1-8 switch views
+      if (e.key >= "1" && e.key <= "8") {
         const idx = Number(e.key) - 1;
         if (idx < NAV_ITEMS.length) {
           setView(NAV_ITEMS[idx].id);
@@ -301,7 +302,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function ShortcutsModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { setView } = useAppStore();
   const shortcuts: { keys: string; desc: string; action?: () => void }[] = [
-    { keys: "1–7", desc: "Switch to view 1–7 (Dashboard → About)" },
+    { keys: "1–8", desc: "Switch to view 1–8 (Dashboard → About)" },
     { keys: "/", desc: "Focus library search" },
     { keys: "?", desc: "Toggle this shortcuts dialog" },
     { keys: "Esc", desc: "Close drawer / dialog" },

@@ -291,3 +291,52 @@ Unresolved issues / risks:
 - The glossary has 233 of the paper's 900+ — could keep expanding toward 300+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add a "compare backtests" feature (run 2 strategies side-by-side equity curves); (b) add a strategy-relationship network graph visualization (full graph view, not just per-strategy); (c) add a pACF (partial autocorrelation) chart alongside the ACF; (d) add more glossary terms (toward 300+); (e) add a "trending strategies" section based on most-viewed across sessions; (f) add an export for the options payoff diagram.
+
+---
+Task ID: 7 (cron review round 6)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–6; confirmed app had 151 strategies, 10 backtest strategies, 233 glossary terms, 7 views, related strategies graph, ACF chart, share permalinks, CSV/JSON export, quick presets, Strategy of the Day, monthly heatmap, return distribution, recently-viewed, keyboard shortcuts.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added a new "Compare Backtests" view (8th view):
+  - Created `POST /api/backtest-compare` API route that runs 1–3 strategies with the same bars/seed and returns overlaid equity curves + metrics for each.
+  - Built `src/components/views/backtest-compare-view.tsx` — users pick 2-3 strategies (each with its own drift/vol but shared bars/seed for fair comparison). The right panel shows: (1) an overlaid equity-curve LineChart with each strategy colored, (2) a metrics comparison table (10 metrics × N strategies) with color-coded values. Slots can be added/removed (up to 3), each with a colored top border matching the chart line.
+  - Added "Compare Backtests" to NAV_ITEMS (with BarChart3 icon) and wired it into the page router. Updated keyboard shortcuts to handle keys 1-8.
+- Phase 2 — Added options payoff diagram export (PNG/SVG):
+  - Added SVG and PNG export buttons to the payoff diagram header in the Options Lab.
+  - `exportChartSVG` serializes the Recharts `<svg>` (via XMLSerializer) and downloads it as an `.svg` file with an inlined dark background.
+  - `exportChartPNG` renders the SVG to a canvas (2× retina scale), fills the background, and downloads a high-res `.png`. Toast confirms each export.
+  - Wrapped the chart in a `#payoff-chart` container so the helper can locate the SVG.
+- Phase 3 — Added pACF (partial autocorrelation) chart alongside the ACF:
+  - Built `PACFChart` component in the backtest view that computes the partial autocorrelation function via the Durbin-Levinson recursion (computes ACF first, then iteratively extracts the direct lag effects).
+  - Renders the pACF as a bar chart with a 95% CI band (±1.96/√n), coloring significant bars green (positive) / rose (negative), muted otherwise. Includes a legend and the CI value.
+  - Restructured the ACF section into a 2-column grid: ACF on the left, pACF on the right.
+- Phase 4 — Expanded glossary 233 → 274 terms + styling polish:
+  - Added 41 new terms across 7 categories: 7 risk/time-series terms (AR(1), Box-Jenkins, heteroskedasticity, Ljung-Box, stationarity, unit root, white noise); 8 exotic options terms (Asian, barrier, binary/digital, cliquet, compound, lookback, power, shout); 7 fixed-income terms (basis point, convexity bias, day count, flat curve, implied vol FI, roll-down, steepener); 6 stocks terms (beta decomposition, crowding, factor crowding, market-cap weighting, smart beta, stock-specific risk); 6 macro terms (beta-adjusted hedge, bond convexity hedging, convenience yield commodity, cross-currency basis, DXY, oil term structure); 7 trading terms (execution algorithm, hot hand fallacy, implementation shortfall, latency arb, POV, slippage model, TWAP).
+  - Updated dashboard stat: "Glossary Terms: 274".
+  - Updated about view glossary feature card description.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 274 (up from 233).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "274", "Compare Backtests" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest-compare` (Single MA + Two MA, 400 bars) → 2 results, both with 400 equity points — overlay confirmed.
+  - `POST /api/backtest` (Bollinger Bands, 500 bars) → 500 equity points (sufficient for pACF), Sharpe 0.78.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New "Compare Backtests" view (8th view) — run 2-3 strategies on the same price series and overlay their equity curves, plus a side-by-side metrics comparison table. New `/api/backtest-compare` endpoint powers it.
+- New options payoff diagram export (SVG + PNG) — serialize the chart and download, with retina-quality PNG rendering and inlined dark backgrounds.
+- New pACF chart alongside the ACF in the Backtest Lab — partial autocorrelation via Durbin-Levinson recursion, complementing the ACF for time-series analysis.
+- Glossary expanded 233 → 274 terms across 7 categories (41 new terms covering time-series statistics, exotic options, fixed-income mechanics, factor investing, macro hedging, and execution algorithms).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 274 of the paper's 900+ — could keep expanding toward 300+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive Greeks vs spot chart in the Options Lab; (d) add more glossary terms (toward 300+); (e) add a drawdown-duration chart (how long underwater); (f) add a strategy search in the glossary for "related terms".
