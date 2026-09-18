@@ -342,8 +342,8 @@ export function BacktestView() {
                   </div>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     Avg: {(() => {
-                      const sr = RollingSharpeChart({ equity: result.equity, window: 63, render: false });
-                      return sr.toFixed(2);
+                      const { avg } = computeRollingSharpe(result.equity, 63);
+                      return avg.toFixed(2);
                     })()}
                   </Badge>
                 </div>
@@ -919,29 +919,30 @@ function UnderwaterChart({ equity }: { equity: BacktestResult["equity"] }) {
   );
 }
 
-// Rolling Sharpe ratio chart
-function RollingSharpeChart({ equity, window, render = true }: { equity: BacktestResult["equity"]; window: number; render?: boolean }) {
-  const { data, avg } = React.useMemo(() => {
-    if (equity.length < window + 1) return { data: [], avg: 0 };
-    const returns: number[] = [];
-    for (let i = 1; i < equity.length; i++) {
-      returns.push(equity[i].equity / equity[i - 1].equity - 1);
-    }
-    const rolling: { date: string; sharpe: number }[] = [];
-    for (let i = window - 1; i < returns.length; i++) {
-      let sum = 0, sumSq = 0;
-      for (let j = i - window + 1; j <= i; j++) { sum += returns[j]; sumSq += returns[j] * returns[j]; }
-      const mean = sum / window;
-      const variance = Math.max(sumSq / window - mean * mean, 0);
-      const std = Math.sqrt(variance);
-      const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
-      rolling.push({ date: equity[i + 1].date, sharpe });
-    }
-    const avg = rolling.length > 0 ? rolling.reduce((a, b) => a + b.sharpe, 0) / rolling.length : 0;
-    return { data: rolling, avg };
-  }, [equity, window]);
+// Pure computation for rolling Sharpe ratio (no hooks — safe to call anywhere)
+function computeRollingSharpe(equity: BacktestResult["equity"], window: number): { data: { date: string; sharpe: number }[]; avg: number } {
+  if (equity.length < window + 1) return { data: [], avg: 0 };
+  const returns: number[] = [];
+  for (let i = 1; i < equity.length; i++) {
+    returns.push(equity[i].equity / equity[i - 1].equity - 1);
+  }
+  const rolling: { date: string; sharpe: number }[] = [];
+  for (let i = window - 1; i < returns.length; i++) {
+    let sum = 0, sumSq = 0;
+    for (let j = i - window + 1; j <= i; j++) { sum += returns[j]; sumSq += returns[j] * returns[j]; }
+    const mean = sum / window;
+    const variance = Math.max(sumSq / window - mean * mean, 0);
+    const std = Math.sqrt(variance);
+    const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
+    rolling.push({ date: equity[i + 1].date, sharpe });
+  }
+  const avg = rolling.length > 0 ? rolling.reduce((a, b) => a + b.sharpe, 0) / rolling.length : 0;
+  return { data: rolling, avg };
+}
 
-  if (!render) return avg;
+// Rolling Sharpe ratio chart
+function RollingSharpeChart({ equity, window }: { equity: BacktestResult["equity"]; window: number }) {
+  const { data, avg } = React.useMemo(() => computeRollingSharpe(equity, window), [equity, window]);
 
   if (data.length === 0) return <div className="text-xs text-muted-foreground">Insufficient data for rolling Sharpe</div>;
 
