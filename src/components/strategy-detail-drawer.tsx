@@ -37,7 +37,7 @@ function RiskMeter({ level, label }: { level: number; label: string }) {
 }
 
 export function StrategyDetailDrawer() {
-  const { selectedStrategyId, detailOpen, closeDetail, toggleCompare, compareList, setView } = useAppStore();
+  const { selectedStrategyId, detailOpen, closeDetail, toggleCompare, compareList, favorites, toggleFavorite, setView } = useAppStore();
   const router = useRouter();
 
   const strategy = selectedStrategyId ? getStrategyById(selectedStrategyId) : undefined;
@@ -70,8 +70,9 @@ export function StrategyDetailDrawer() {
   const Icon = (Icons as any)[ac.icon] || Icons.Circle;
   const inCompare = compareList.includes(strategy.id);
   const compareFull = compareList.length >= 4 && !inCompare;
+  const isFavorite = favorites.includes(strategy.id);
 
-  const backtestable = ["single-moving-average", "two-moving-averages", "three-moving-averages", "channel", "etf-mean-reversion", "price-momentum", "pairs-trading"].includes(strategy.id);
+  const backtestable = ["single-moving-average", "two-moving-averages", "three-moving-averages", "channel", "etf-mean-reversion", "price-momentum", "pairs-trading", "bollinger-bands", "rsi-mean-reversion", "macd-crossover"].includes(strategy.id);
 
   return (
     <Sheet open={detailOpen} onOpenChange={(o) => !o && closeDetail()}>
@@ -218,6 +219,15 @@ export function StrategyDetailDrawer() {
             >
               <Icons.GitCompare className="h-3.5 w-3.5" />
               {inCompare ? "In Compare" : compareFull ? "Compare Full" : "Add to Compare"}
+            </Button>
+            <Button
+              size="sm"
+              variant={isFavorite ? "default" : "outline"}
+              className={cn("gap-1.5", isFavorite && "bg-rose-500/90 hover:bg-rose-500 text-white")}
+              onClick={() => toggleFavorite(strategy.id)}
+            >
+              <Icons.Heart className={cn("h-3.5 w-3.5", isFavorite && "fill-white")} />
+              {isFavorite ? "Favorited" : "Add to Favorites"}
             </Button>
           </section>
         </div>

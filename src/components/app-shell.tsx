@@ -55,7 +55,7 @@ function NavButton({ item, active, onClick }: { item: NavItem; active: boolean; 
 }
 
 function SidebarContent() {
-  const { view, setView, compareList, clearCompare, removeFromCompare, setLibraryCategory } = useAppStore();
+  const { view, setView, compareList, clearCompare, removeFromCompare, setLibraryCategory, favorites, setLibraryFavoritesOnly } = useAppStore();
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
@@ -154,6 +154,15 @@ function SidebarContent() {
           <div className="font-mono font-semibold text-foreground tnum">{ASSET_CLASSES.length}</div>
         </div>
       </div>
+      {favorites.length > 0 && (
+        <button
+          onClick={() => { setLibraryFavoritesOnly(true); setView("library"); }}
+          className="mx-3 mb-3 mt-1 flex items-center justify-between rounded-md border border-rose-500/20 bg-rose-500/5 px-2.5 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors"
+        >
+          <span className="flex items-center gap-1.5"><Icons.Heart className="h-3 w-3 fill-rose-400" /> Favorites</span>
+          <span className="font-mono tnum">{favorites.length}</span>
+        </button>
+      )}
     </div>
   );
 }

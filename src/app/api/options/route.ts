@@ -40,9 +40,18 @@ export async function POST(req: NextRequest) {
     const greeks = strategyGreeks(strategy, spotVal, tVal, rVal, volVal);
     const netCost = strategyNetCost(strategy);
 
+    // JSON.stringify(Infinity) === null, so convert to string sentinels
+    const safeCurve = {
+      prices: curve.prices,
+      payoffs: curve.payoffs,
+      breakevens: curve.breakevens,
+      maxProfit: curve.maxProfit === Infinity ? "unlimited" : curve.maxProfit,
+      maxLoss: curve.maxLoss === -Infinity ? "unlimited" : curve.maxLoss,
+    };
+
     return NextResponse.json({
       strategy,
-      curve,
+      curve: safeCurve,
       greeks,
       netCost,
       spot: spotVal,

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 type SortKey = "number" | "risk-asc" | "risk-desc" | "complexity" | "name";
 
 export function LibraryView() {
-  const { libraryCategory, setLibraryCategory, librarySearch, setLibrarySearch, compareList } = useAppStore();
+  const { libraryCategory, setLibraryCategory, librarySearch, setLibrarySearch, compareList, favorites, libraryFavoritesOnly, setLibraryFavoritesOnly } = useAppStore();
   const [sort, setSort] = React.useState<SortKey>("number");
   const [typeFilter, setTypeFilter] = React.useState<StrategyType | "all">("all");
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
@@ -24,6 +24,7 @@ export function LibraryView() {
     let list = STRATEGIES.slice();
     if (libraryCategory !== "all") list = list.filter((s) => s.category === libraryCategory);
     if (typeFilter !== "all") list = list.filter((s) => s.type === typeFilter);
+    if (libraryFavoritesOnly) list = list.filter((s) => favorites.includes(s.id));
     if (librarySearch.trim()) {
       const q = librarySearch.toLowerCase();
       list = list.filter(
@@ -43,7 +44,7 @@ export function LibraryView() {
       default: list.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
     }
     return list;
-  }, [libraryCategory, librarySearch, typeFilter, sort]);
+  }, [libraryCategory, librarySearch, typeFilter, sort, libraryFavoritesOnly, favorites]);
 
   return (
     <div className="flex flex-col h-full">
@@ -100,6 +101,19 @@ export function LibraryView() {
             <CategoryChip active={libraryCategory === "all"} onClick={() => setLibraryCategory("all")}>
               All <span className="ml-1 opacity-60 font-mono">{STRATEGIES.length}</span>
             </CategoryChip>
+            <button
+              onClick={() => setLibraryFavoritesOnly(!libraryFavoritesOnly)}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all",
+                libraryFavoritesOnly
+                  ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground"
+              )}
+              title="Show only favorited strategies"
+            >
+              <Icons.Heart className={cn("h-3 w-3", libraryFavoritesOnly && "fill-rose-400")} />
+              Favorites <span className="ml-0.5 opacity-60 font-mono">{favorites.length}</span>
+            </button>
             {ASSET_CLASSES.map((ac) => {
               const colors = CATEGORY_COLORS[ac.id as AssetClassId];
               const active = libraryCategory === ac.id;

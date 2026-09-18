@@ -208,6 +208,84 @@ export function zscore(prices: number[], window: number): (number | null)[] {
   return prices.map((p, i) => (m[i] !== null && s[i] !== null && s[i]! > 0 ? (p - m[i]!) / s[i]! : null));
 }
 
+// Exponential moving average
+export function ema(prices: number[], window: number): (number | null)[] {
+  const out: (number | null)[] = new Array(prices.length).fill(null);
+  const k = 2 / (window + 1);
+  let prev: number | null = null;
+  // Seed with SMA of first `window` values
+  let sum = 0;
+  for (let i = 0; i < prices.length; i++) {
+    sum += prices[i];
+    if (i === window - 1) {
+      prev = sum / window;
+      out[i] = prev;
+    } else if (i >= window) {
+      prev = prices[i] * k + (prev as number) * (1 - k);
+      out[i] = prev;
+    }
+  }
+  return out;
+}
+
+// Relative Strength Index (Wilder's smoothing)
+export function rsi(prices: number[], window: number): (number | null)[] {
+  const out: (number | null)[] = new Array(prices.length).fill(null);
+  if (prices.length <= window) return out;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= window; i++) {
+    const ch = prices[i] - prices[i - 1];
+    if (ch >= 0) gains += ch; else losses -= ch;
+  }
+  let avgGain = gains / window;
+  let avgLoss = losses / window;
+  out[window] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = window + 1; i < prices.length; i++) {
+    const ch = prices[i] - prices[i - 1];
+    const g = ch > 0 ? ch : 0;
+    const l = ch < 0 ? -ch : 0;
+    avgGain = (avgGain * (window - 1) + g) / window;
+    avgLoss = (avgLoss * (window - 1) + l) / window;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return out;
+}
+
+// Bollinger Bands: middle = SMA, upper/lower = middle ± k * std
+export function bollingerBands(prices: number[], window: number, k: number): { middle: (number | null)[]; upper: (number | null)[]; lower: (number | null)[] } {
+  const middle = sma(prices, window);
+  const std = rollingStd(prices, window);
+  const upper: (number | null)[] = new Array(prices.length).fill(null);
+  const lower: (number | null)[] = new Array(prices.length).fill(null);
+  for (let i = 0; i < prices.length; i++) {
+    if (middle[i] !== null && std[i] !== null) {
+      upper[i] = (middle[i] as number) + k * (std[i] as number);
+      lower[i] = (middle[i] as number) - k * (std[i] as number);
+    }
+  }
+  return { middle, upper, lower };
+}
+
+// MACD: fast EMA - slow EMA, signal = EMA of MACD, histogram = MACD - signal
+export function macd(prices: number[], fast: number, slow: number, signal: number): { macd: (number | null)[]; signal: (number | null)[]; histogram: (number | null)[] } {
+  const fastEma = ema(prices, fast);
+  const slowEma = ema(prices, slow);
+  const macdLine: (number | null)[] = prices.map((_, i) =>
+    fastEma[i] !== null && slowEma[i] !== null ? (fastEma[i] as number) - (slowEma[i] as number) : null
+  );
+  // Build signal line: EMA of the MACD values (only where non-null)
+  const macdValues: number[] = [];
+  const startIndex = macdLine.findIndex((v) => v !== null);
+  for (let i = startIndex; i < prices.length; i++) macdValues.push(macdLine[i] as number);
+  const signalRaw = ema(macdValues, signal);
+  const signalLine: (number | null)[] = new Array(prices.length).fill(null);
+  for (let i = 0; i < macdValues.length; i++) signalLine[startIndex + i] = signalRaw[i];
+  const histogram: (number | null)[] = prices.map((_, i) =>
+    macdLine[i] !== null && signalLine[i] !== null ? (macdLine[i] as number) - (signalLine[i] as number) : null
+  );
+  return { macd: macdLine, signal: signalLine, histogram };
+}
+
 // ---------- Strategy backtest engines ----------
 interface BaseParams {
   bars: number;
@@ -528,6 +606,130 @@ export function backtestMomentum(params: BaseParams & { lookback: number; holdPe
   };
 }
 
+// ---- Bollinger Bands mean-reversion ----
+export function backtestBollingerBands(params: BaseParams & { window: number; k: number; entryZ: number; exitZ: number }): BacktestResult {
+  const series = generatePriceSeries({
+    symbol: "ASSET",
+    bars: params.bars,
+    startPrice: params.startPrice,
+    drift: params.drift,
+    volatility: params.volatility,
+    seed: params.seed,
+  });
+  const prices = series.points.map((p) => p.price);
+  const dates = series.points.map((p) => p.date);
+  const { upper, lower, middle } = bollingerBands(prices, params.window, params.k);
+
+  let pos = 0;
+  const positions = prices.map((_, i) => {
+    if (upper[i] === null || lower[i] === null || middle[i] === null) return 0;
+    const u = upper[i] as number;
+    const l = lower[i] as number;
+    const m = middle[i] as number;
+    if (pos === 0) {
+      if (prices[i] <= l) pos = 1;        // touch lower band → buy
+      else if (prices[i] >= u) pos = -1;   // touch upper band → sell
+    } else {
+      // Exit when reverting to middle
+      if (pos === 1 && prices[i] >= m) pos = 0;
+      else if (pos === -1 && prices[i] <= m) pos = 0;
+    }
+    return pos;
+  });
+  const benchmark = prices.map((p) => p / prices[0] * params.initialCapital);
+  const { equity, trades } = runPositionStrategy(prices, dates, positions, benchmark, params.initialCapital, params.bars);
+
+  return {
+    equity: equity.map((e, i) => ({ t: i, date: dates[i], equity: e, benchmark: benchmark[i], position: positions[i] })),
+    trades,
+    metrics: computeMetrics(equity, benchmark, trades, params.bars),
+    signals: prices.map((p, i) => ({ t: i, date: dates[i], price: p, signal: positions[i] })),
+    params: { window: params.window, k: params.k, entryZ: params.entryZ, exitZ: params.exitZ, bars: params.bars, drift: params.drift, volatility: params.volatility, seed: params.seed },
+    strategyId: "bollinger-bands",
+    strategyName: "Bollinger Bands Mean-Reversion",
+  };
+}
+
+// ---- RSI mean-reversion ----
+export function backtestRSI(params: BaseParams & { window: number; oversold: number; overbought: number; exitMid: number }): BacktestResult {
+  const series = generatePriceSeries({
+    symbol: "ASSET",
+    bars: params.bars,
+    startPrice: params.startPrice,
+    drift: params.drift,
+    volatility: params.volatility,
+    seed: params.seed,
+  });
+  const prices = series.points.map((p) => p.price);
+  const dates = series.points.map((p) => p.date);
+  const rsiArr = rsi(prices, params.window);
+
+  let pos = 0;
+  const positions = prices.map((_, i) => {
+    if (rsiArr[i] === null) return 0;
+    const r = rsiArr[i] as number;
+    if (pos === 0) {
+      if (r <= params.oversold) pos = 1;        // oversold → buy
+      else if (r >= params.overbought) pos = -1; // overbought → sell
+    } else {
+      if (pos === 1 && r >= params.exitMid) pos = 0;     // exit long when RSI rebounds
+      else if (pos === -1 && r <= params.exitMid) pos = 0; // exit short when RSI dips
+    }
+    return pos;
+  });
+  const benchmark = prices.map((p) => p / prices[0] * params.initialCapital);
+  const { equity, trades } = runPositionStrategy(prices, dates, positions, benchmark, params.initialCapital, params.bars);
+
+  return {
+    equity: equity.map((e, i) => ({ t: i, date: dates[i], equity: e, benchmark: benchmark[i], position: positions[i] })),
+    trades,
+    metrics: computeMetrics(equity, benchmark, trades, params.bars),
+    signals: prices.map((p, i) => ({ t: i, date: dates[i], price: p, signal: positions[i] })),
+    params: { window: params.window, oversold: params.oversold, overbought: params.overbought, exitMid: params.exitMid, bars: params.bars, drift: params.drift, volatility: params.volatility, seed: params.seed },
+    strategyId: "rsi-mean-reversion",
+    strategyName: "RSI Mean-Reversion",
+  };
+}
+
+// ---- MACD crossover ----
+export function backtestMACD(params: BaseParams & { fast: number; slow: number; signal: number }): BacktestResult {
+  const series = generatePriceSeries({
+    symbol: "ASSET",
+    bars: params.bars,
+    startPrice: params.startPrice,
+    drift: params.drift,
+    volatility: params.volatility,
+    seed: params.seed,
+  });
+  const prices = series.points.map((p) => p.price);
+  const dates = series.points.map((p) => p.date);
+  const { macd: macdLine, signal: signalLine } = macd(prices, params.fast, params.slow, params.signal);
+
+  let pos = 0;
+  const positions = prices.map((_, i) => {
+    if (macdLine[i] === null || signalLine[i] === null) return 0;
+    const m = macdLine[i] as number;
+    const s = signalLine[i] as number;
+    // Bullish crossover (MACD crosses above signal) → long
+    if (m > s) pos = 1;
+    // Bearish crossover → short
+    else if (m < s) pos = -1;
+    return pos;
+  });
+  const benchmark = prices.map((p) => p / prices[0] * params.initialCapital);
+  const { equity, trades } = runPositionStrategy(prices, dates, positions, benchmark, params.initialCapital, params.bars);
+
+  return {
+    equity: equity.map((e, i) => ({ t: i, date: dates[i], equity: e, benchmark: benchmark[i], position: positions[i] })),
+    trades,
+    metrics: computeMetrics(equity, benchmark, trades, params.bars),
+    signals: prices.map((p, i) => ({ t: i, date: dates[i], price: p, signal: positions[i] })),
+    params: { fast: params.fast, slow: params.slow, signal: params.signal, bars: params.bars, drift: params.drift, volatility: params.volatility, seed: params.seed },
+    strategyId: "macd-crossover",
+    strategyName: "MACD Crossover",
+  };
+}
+
 // ---- Pairs trading (cointegration spread) ----
 export function backtestPairsTrading(params: {
   bars: number;
@@ -705,6 +907,53 @@ export const BACKTEST_STRATEGIES: BacktestDef[] = [
       { key: "seed", label: "Random Seed", min: 1, max: 999, step: 1, default: 42 },
     ],
     run: (p) => backtestPairsTrading({ ...p, startA: 100, startB: 100, initialCapital: 100000 }),
+  },
+  {
+    id: "bollinger-bands",
+    name: "Bollinger Bands Mean-Reversion",
+    description: "Buy at lower band, sell at upper band, exit at middle. Classic volatility-envelope reversion.",
+    params: [
+      { key: "window", label: "BB Window", min: 5, max: 100, step: 1, default: 20, unit: "days" },
+      { key: "k", label: "Std-Dev Multiplier", min: 1, max: 3, step: 0.1, default: 2 },
+      { key: "entryZ", label: "Entry Z (unused)", min: 0, max: 3, step: 0.1, default: 0 },
+      { key: "exitZ", label: "Exit Z (unused)", min: 0, max: 3, step: 0.1, default: 0 },
+      { key: "bars", label: "Bars", min: 100, max: 1500, step: 50, default: 750 },
+      { key: "drift", label: "Drift", min: -0.2, max: 0.3, step: 0.01, default: 0.02 },
+      { key: "volatility", label: "Volatility", min: 0.05, max: 0.6, step: 0.01, default: 0.18 },
+      { key: "seed", label: "Random Seed", min: 1, max: 999, step: 1, default: 42 },
+    ],
+    run: (p) => backtestBollingerBands({ ...p, startPrice: 100, initialCapital: 100000 }),
+  },
+  {
+    id: "rsi-mean-reversion",
+    name: "RSI Mean-Reversion",
+    description: "Buy when RSI is oversold, sell when overbought, exit at mid-line. Wilder's RSI.",
+    params: [
+      { key: "window", label: "RSI Window", min: 5, max: 50, step: 1, default: 14, unit: "days" },
+      { key: "oversold", label: "Oversold Level", min: 10, max: 40, step: 1, default: 30 },
+      { key: "overbought", label: "Overbought Level", min: 60, max: 90, step: 1, default: 70 },
+      { key: "exitMid", label: "Exit Mid Level", min: 30, max: 70, step: 1, default: 50 },
+      { key: "bars", label: "Bars", min: 100, max: 1500, step: 50, default: 750 },
+      { key: "drift", label: "Drift", min: -0.2, max: 0.3, step: 0.01, default: 0.02 },
+      { key: "volatility", label: "Volatility", min: 0.05, max: 0.6, step: 0.01, default: 0.16 },
+      { key: "seed", label: "Random Seed", min: 1, max: 999, step: 1, default: 42 },
+    ],
+    run: (p) => backtestRSI({ ...p, startPrice: 100, initialCapital: 100000 }),
+  },
+  {
+    id: "macd-crossover",
+    name: "MACD Crossover",
+    description: "Long when MACD line is above signal line, short when below. Classic EMA crossover momentum.",
+    params: [
+      { key: "fast", label: "Fast EMA", min: 5, max: 30, step: 1, default: 12, unit: "days" },
+      { key: "slow", label: "Slow EMA", min: 20, max: 60, step: 1, default: 26, unit: "days" },
+      { key: "signal", label: "Signal EMA", min: 3, max: 20, step: 1, default: 9, unit: "days" },
+      { key: "bars", label: "Bars", min: 100, max: 1500, step: 50, default: 750 },
+      { key: "drift", label: "Drift", min: -0.2, max: 0.3, step: 0.01, default: 0.08 },
+      { key: "volatility", label: "Volatility", min: 0.05, max: 0.6, step: 0.01, default: 0.2 },
+      { key: "seed", label: "Random Seed", min: 1, max: 999, step: 1, default: 42 },
+    ],
+    run: (p) => backtestMACD({ ...p, startPrice: 100, initialCapital: 100000 }),
   },
 ];
 

@@ -8,6 +8,20 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+// IDs of strategies that have a live backtest implementation
+const BACKTESTABLE_IDS = new Set([
+  "single-moving-average",
+  "two-moving-averages",
+  "three-moving-averages",
+  "channel",
+  "etf-mean-reversion",
+  "price-momentum",
+  "pairs-trading",
+  "bollinger-bands",
+  "rsi-mean-reversion",
+  "macd-crossover",
+]);
+
 function RiskMeter({ level }: { level: number }) {
   return (
     <div className="flex items-center gap-0.5">
@@ -53,7 +67,9 @@ interface StrategyCardProps {
 export function StrategyCard({ strategy, variant = "default", index = 0 }: StrategyCardProps) {
   const openStrategy = useAppStore((s) => s.openStrategy);
   const toggleCompare = useAppStore((s) => s.toggleCompare);
+  const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const compareList = useAppStore((s) => s.compareList);
+  const favorites = useAppStore((s) => s.favorites);
 
   const colors = CATEGORY_COLORS[strategy.category];
   const view = MARKET_VIEW_META[strategy.marketView];
@@ -61,6 +77,7 @@ export function StrategyCard({ strategy, variant = "default", index = 0 }: Strat
   const ac = ASSET_CLASS_MAP[strategy.category];
   const inCompare = compareList.includes(strategy.id);
   const compareFull = compareList.length >= 4 && !inCompare;
+  const isFavorite = favorites.includes(strategy.id);
 
   const Icon = (Icons as any)[ac.icon] || Icons.Circle;
 
@@ -69,7 +86,7 @@ export function StrategyCard({ strategy, variant = "default", index = 0 }: Strat
       className={cn(
         "group relative rounded-xl border bg-card transition-all duration-200 cursor-pointer",
         "hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5",
-        colors.border,
+        isFavorite ? cn(colors.border, "ring-1", colors.ring) : colors.border,
         variant === "compact" ? "p-3" : "p-4"
       )}
       onClick={() => openStrategy(strategy.id)}
@@ -89,11 +106,23 @@ export function StrategyCard({ strategy, variant = "default", index = 0 }: Strat
             <h3 className="text-sm font-semibold leading-tight truncate text-foreground">{strategy.name}</h3>
           </div>
         </div>
-        {strategy.featured && (
-          <span className="shrink-0 text-amber-400" title="Featured">
-            <Icons.Star className="h-3.5 w-3.5 fill-amber-400" />
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {strategy.featured && (
+            <span className="text-amber-400" title="Featured">
+              <Icons.Star className="h-3.5 w-3.5 fill-amber-400" />
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleFavorite(strategy.id); }}
+            className={cn(
+              "rounded-md p-0.5 transition-all hover:bg-muted/60",
+              isFavorite ? "text-rose-400" : "text-muted-foreground/40 hover:text-rose-400"
+            )}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Icons.Heart className={cn("h-3.5 w-3.5", isFavorite && "fill-rose-400")} />
+          </button>
+        </div>
       </div>
 
       {/* Description */}
@@ -113,6 +142,12 @@ export function StrategyCard({ strategy, variant = "default", index = 0 }: Strat
         <Badge variant="outline" className="text-[10px] py-0 h-5">
           {typeMeta.label}
         </Badge>
+        {BACKTESTABLE_IDS.has(strategy.id) && (
+          <Badge variant="outline" className="text-[9px] py-0 h-5 gap-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/30" title="Available in Backtest Lab">
+            <Icons.FlaskConical className="h-2.5 w-2.5" />
+            BT
+          </Badge>
+        )}
       </div>
 
       {/* Footer: risk / complexity */}

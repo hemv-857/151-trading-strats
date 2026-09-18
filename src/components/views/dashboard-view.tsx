@@ -15,8 +15,8 @@ import { Area, AreaChart, XAxis, YAxis, ReferenceLine } from "recharts";
 const STATS = [
   { label: "Trading Strategies", value: 151, suffix: "", icon: "Layers", color: "text-emerald-400" },
   { label: "Asset Classes", value: 18, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
-  { label: "Mathematical Formulas", value: 550, suffix: "+", icon: "Sigma", color: "text-sky-400" },
-  { label: "Bibliographic Refs", value: 2000, suffix: "+", icon: "BookMarked", color: "text-violet-400" },
+  { label: "Backtestable Models", value: 10, suffix: "", icon: "FlaskConical", color: "text-sky-400" },
+  { label: "Options Presets", value: 14, suffix: "", icon: "LineChart", color: "text-violet-400" },
 ];
 
 const HERO_CHART = [
@@ -161,13 +161,13 @@ export function DashboardView() {
             {STATS.map((s) => {
               const Icon = Icons[s.icon as keyof typeof Icons] as React.ComponentType<{ className?: string }>;
               return (
-                <Card key={s.label} className="p-4 hover:border-primary/30 transition-colors">
+                <Card key={s.label} className="p-4 hover:border-primary/30 transition-colors group/stat">
                   <div className="flex items-center justify-between mb-2">
-                    <Icon className={cn("h-4 w-4", s.color)} />
-                    <Icons.ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                    <Icon className={cn("h-4 w-4 transition-transform group-hover/stat:scale-110", s.color)} />
+                    <Icons.ArrowUpRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover/stat:opacity-100 transition-opacity" />
                   </div>
                   <div className="text-2xl font-bold font-mono tnum">
-                    {s.value.toLocaleString()}{s.suffix}
+                    <AnimatedCounter value={s.value} />{s.suffix}
                   </div>
                   <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{s.label}</div>
                 </Card>
@@ -293,4 +293,23 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: "b
       <div className={cn("text-sm font-mono font-bold tnum", color)}>{value}</div>
     </div>
   );
+}
+
+function AnimatedCounter({ value }: { value: number }) {
+  const [display, setDisplay] = React.useState(0);
+  React.useEffect(() => {
+    let raf: number;
+    const start = performance.now();
+    const duration = 900;
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(Math.round(value * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <span>{display.toLocaleString()}</span>;
 }

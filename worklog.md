@@ -45,3 +45,56 @@ Unresolved issues / risks:
 - The strategy count in the data file is ~120 (curated from the paper's TOC), while the headline advertises "151" (the paper's title). This is intentional — the headline reflects the paper; the library contains the strategies most amenable to interactive treatment. Could be expanded to the full 151 in a future phase.
 - Real market data is not wired (synthetic GBM only by design — educational). A future phase could integrate a data source for the stock/ETF strategies.
 - Next steps for the cron review task: (a) expand the strategy dataset toward the full 151; (b) add more backtestable strategies (e.g. Bollinger Bands, RSI, MACD); (c) add a custom options strategy builder (user-defined legs); (d) add strategy "favorites" persistence; (e) add a glossary view drawn from the paper's 900+ definitions.
+
+---
+Task ID: 2 (cron review round 1)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Task 1; confirmed app was fully functional (7 backtest strategies, 14 options presets, 6 views).
+- Restarted the dev server (it had been OOM-killed in the memory-constrained Kata sandbox) and verified via curl + API endpoints before any code changes.
+- Phase 1 — Added 3 new backtest strategies (Backtest Lab 7 → 10):
+  - Added 4 new technical indicators to `src/lib/backtest-engine.ts`: `ema` (exponential moving average), `rsi` (Wilder's Relative Strength Index), `bollingerBands` (SMA ± k·std envelope), `macd` (fast/slow EMA crossover with signal line + histogram).
+  - Added 3 new strategy functions: `backtestBollingerBands` (buy at lower band, sell at upper, exit at middle), `backtestRSI` (oversold→buy, overbought→sell, exit at mid), `backtestMACD` (long when MACD>signal, short when below).
+  - Registered all 3 in `BACKTEST_STRATEGIES` with appropriate parameters (BB window/k, RSI oversold/overbought/exit, MACD fast/slow/signal).
+- Phase 2 — Added strategy favorites with localStorage persistence:
+  - Upgraded `src/lib/store.ts` to use `zustand/middleware` `persist` with `createJSONStorage(localStorage)`. Only `favorites` is persisted (via `partialize`); view state and transient UI state remain ephemeral. Added `favorites`, `libraryFavoritesOnly`, `toggleFavorite`, `removeFromFavorites`, `clearFavorites`, `setLibraryFavoritesOnly` to the store.
+  - Added a heart toggle to `src/components/strategy-card.tsx` header (next to the featured star). Favorited cards get a rose ring + border highlight. Heart fills rose when favorited.
+  - Added a "Favorites" filter chip in `src/components/views/library-view.tsx` (next to the "All" category chip) with a live count; toggles `libraryFavoritesOnly` to filter the list.
+  - Added a "Favorites" quick-jump button in the sidebar footer (`src/components/app-shell.tsx`) showing the count; clicking it opens the library with the favorites filter on.
+  - Added an "Add to Favorites" / "Favorited" button to the strategy detail drawer.
+- Phase 3 — Built a custom options strategy builder:
+  - Added a "Presets / Custom Builder" mode toggle in the `src/components/views/options-view.tsx` header.
+  - Built a `CustomLegEditor` component that lets users add/edit/remove option legs. Each leg has: type (Call/Put), action (Buy/Sell), strike, premium, quantity — all editable inline. Strike changes auto-recompute the premium via Black-Scholes. "Add Call Leg" / "Add Put Leg" buttons add new legs at the spot price.
+  - The existing `/api/options` route already accepted a `strategy` object (instead of a `preset`), so the custom builder sends the user-defined legs to the API and the payoff diagram + Greeks update live.
+  - Updated the strategy-detail-drawer `backtestable` list to include the 3 new strategies (bollinger-bands, rsi-mean-reversion, macd-crossover).
+- Phase 4 — Styling polish + bug fixes:
+  - Dashboard stats now use an `AnimatedCounter` (ease-out cubic count-up animation on mount).
+  - Updated dashboard stats to reflect interactive features: "Backtestable Models: 10", "Options Presets: 14" (replaced the static "Formulas/Refs" stats).
+  - Added a "BT" (Backtestable) badge to strategy cards for the 10 strategies that have live backtest implementations, with a FlaskConical icon and emerald styling.
+  - Added hover micro-interactions: stat icons scale 110% on hover, arrow-up-right fades in.
+  - Fixed a JSON serialization bug: `JSON.stringify(Infinity)` returns `null`, which was causing `maxProfit`/`maxLoss` to be `null` for unlimited-risk strategies (straddles, risk reversals, short straddles). The API now converts `Infinity` → `"unlimited"` string sentinel, and the client `fmtInfinity` handles both number and string. The SummaryCard `sub` text now checks for the `"unlimited"` string instead of `=== Infinity`.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - SSR renders all expected content including new stats ("Backtestable Models", "Options Presets").
+  - `GET /api/backtest` returns 10 strategies (confirmed: Single MA, Two MA, Three MA, Channel, Mean Reversion, Momentum, Pairs, Bollinger Bands, RSI, MACD).
+  - `POST /api/backtest` for each new strategy returns valid metrics: BB (500 bars) → return +19.71%, Sharpe 0.78, 20 trades; RSI → return -3.40%, Sharpe -0.37, 4 trades; MACD → return +10.84%, Sharpe 0.49, 25 trades.
+  - `POST /api/options` with a custom 2-leg strategy (long call @100 + short put @95) returns: maxProfit="unlimited", maxLoss="unlimited", netCost=3.00, delta=81.15 — correct for a risk reversal.
+  - `POST /api/options` with long-straddle preset returns: maxProfit="unlimited", maxLoss=-7.97 (defined), breakevens 92.03/107.97 — correct.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification of the chart-heavy views is still blocked by the 4 GB RAM / no-swap Kata sandbox (Chrome + Turbopack dev server cannot coexist — Chrome's renderers push next-server into OOM). All views are verified working via SSR content checks + API endpoint tests. The dashboard was previously agent-browser-verified in Task 1.
+
+Stage Summary:
+- Backtest Lab expanded from 7 → 10 strategies (added Bollinger Bands, RSI, MACD with full EMA indicator support).
+- Options Lab gained a Custom Strategy Builder mode (add/edit/remove legs, live payoff + Greeks).
+- New favorites feature with localStorage persistence: heart toggle on cards, library filter chip, sidebar quick-jump, detail-drawer button.
+- Styling polish: animated stat counters, backtestable badges, hover micro-interactions.
+- Fixed JSON Infinity serialization bug that would have crashed the options summary cards for unlimited-risk strategies.
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The strategy dataset is ~120 (curated); headline still says "151" (the paper's title). Expanding toward the full 151 remains a future task.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) expand the strategy dataset toward the full 151 (add the remaining ~30 strategies from the paper's TOC, especially the Options chapter which has 50+ structures); (b) add a Glossary view drawn from the paper's 900+ definitions; (c) add more chart detail / polish — e.g. drawdown chart, return distribution histogram in the backtest view; (d) add a "share strategy" link / permalink feature; (e) add keyboard shortcuts for navigation.

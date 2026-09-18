@@ -2,13 +2,21 @@
 
 import * as React from "react";
 import * as Icons from "lucide-react";
-import { OPTION_PRESETS, PresetInput } from "@/lib/options-pricing";
+import { OPTION_PRESETS, PresetInput, OptionLeg, OptionType, PositionAction, OptionsStrategy, bsPrice } from "@/lib/options-pricing";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceDot, ReferenceLine, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
@@ -16,7 +24,7 @@ import { toast } from "sonner";
 
 interface OptionsResponse {
   strategy: any;
-  curve: { prices: number[]; payoffs: number[]; breakevens: number[]; maxProfit: number; maxLoss: number };
+  curve: { prices: number[]; payoffs: number[]; breakevens: number[]; maxProfit: number | string; maxLoss: number | string };
   greeks: { delta: number; gamma: number; vega: number; theta: number };
   netCost: number;
   spot: number;
@@ -29,12 +37,24 @@ const chartConfig = {
   payoff: { label: "Payoff", color: "var(--bull)" },
 };
 
+let legIdCounter = 100;
+function newLegId() { return `custom-${++legIdCounter}`; }
+
+function defaultCustomLegs(spot: number, vol: number, T: number, r: number): OptionLeg[] {
+  const prem = bsPrice("call", spot, spot, T, r, vol);
+  return [
+    { id: newLegId(), type: "call", action: "buy", strike: spot, premium: Math.max(0.01, prem), quantity: 1 },
+  ];
+}
+
 export function OptionsView() {
+  const [mode, setMode] = React.useState<"preset" | "custom">("preset");
   const [presetId, setPresetId] = React.useState(OPTION_PRESETS[0].id);
   const [spot, setSpot] = React.useState(100);
   const [vol, setVol] = React.useState(0.20);
   const [T, setT] = React.useState(0.25);
   const [r, setR] = React.useState(0.03);
+  const [customLegs, setCustomLegs] = React.useState<OptionLeg[]>(() => defaultCustomLegs(100, 0.20, 0.25, 0.03));
   const [resp, setResp] = React.useState<OptionsResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
 
@@ -43,10 +63,14 @@ export function OptionsView() {
   const run = React.useCallback(async () => {
     setLoading(true);
     try {
+      const body =
+        mode === "preset"
+          ? { preset: presetId, spot, vol, T, r }
+          : { strategy: { id: "custom", name: "Custom Strategy", category: "options", marketView: "Custom", description: "User-defined option legs", legs: customLegs }, spot, vol, T, r };
       const res = await fetch("/api/options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preset: presetId, spot, vol, T, r }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       setResp(await res.json());
@@ -55,12 +79,12 @@ export function OptionsView() {
     } finally {
       setLoading(false);
     }
-  }, [presetId, spot, vol, T, r]);
+  }, [mode, presetId, customLegs, spot, vol, T, r]);
 
   React.useEffect(() => {
     const t = setTimeout(() => run(), 50);
     return () => clearTimeout(t);
-  }, [presetId, spot, vol, T, r]);
+  }, [mode, presetId, customLegs, spot, vol, T, r]);
 
   // Build chart data
   const chartData = React.useMemo(() => {
@@ -81,39 +105,62 @@ export function OptionsView() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b border-border bg-card/40 px-4 sm:px-6 py-4">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-          <Icons.LineChart className="h-3.5 w-3.5 text-primary" /> Options Strategy Lab
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <Icons.LineChart className="h-3.5 w-3.5 text-primary" /> Options Strategy Lab
+          </div>
+          {/* Mode toggle */}
+          <div className="flex rounded-md border border-border bg-card overflow-hidden text-xs">
+            <button
+              onClick={() => setMode("preset")}
+              className={cn("px-3 py-1.5 transition-colors", mode === "preset" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground")}
+            >
+              Presets
+            </button>
+            <button
+              onClick={() => setMode("custom")}
+              className={cn("px-3 py-1.5 border-l border-border transition-colors", mode === "custom" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground")}
+            >
+              Custom Builder
+            </button>
+          </div>
         </div>
-        <h2 className="text-lg font-semibold">{preset.name}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">{preset.description}</p>
+        <h2 className="text-lg font-semibold">{mode === "preset" ? preset.name : "Custom Strategy Builder"}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
+          {mode === "preset" ? preset.description : "Build your own options structure. Add, edit, or remove legs and watch the payoff diagram update live."}
+        </p>
       </div>
 
-      <div className="flex-1 grid lg:grid-cols-[280px_1fr] min-h-0">
-        {/* Left: preset list + market params */}
+      <div className="flex-1 grid lg:grid-cols-[300px_1fr] min-h-0">
+        {/* Left: preset list + market params OR custom leg editor */}
         <div className="border-r border-border bg-sidebar/30 overflow-y-auto scrollbar-terminal">
           <div className="p-3 space-y-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2 px-1">Preset Strategy</div>
-              <div className="space-y-1">
-                {OPTION_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPresetId(p.id)}
-                    className={cn(
-                      "w-full text-left rounded-md px-2.5 py-2 text-xs transition-colors border",
-                      presetId === p.id
-                        ? "bg-primary/10 text-primary border-primary/30"
-                        : "border-transparent hover:bg-muted/50 text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium leading-tight">{p.name}</span>
-                      <span className={cn("text-[9px] uppercase tracking-wide", viewColor(p.marketView))}>{p.marketView}</span>
-                    </div>
-                  </button>
-                ))}
+            {mode === "preset" ? (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2 px-1">Preset Strategy</div>
+                <div className="space-y-1">
+                  {OPTION_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPresetId(p.id)}
+                      className={cn(
+                        "w-full text-left rounded-md px-2.5 py-2 text-xs transition-colors border",
+                        presetId === p.id
+                          ? "bg-primary/10 text-primary border-primary/30"
+                          : "border-transparent hover:bg-muted/50 text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium leading-tight">{p.name}</span>
+                        <span className={cn("text-[9px] uppercase tracking-wide", viewColor(p.marketView))}>{p.marketView}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <CustomLegEditor legs={customLegs} setLegs={setCustomLegs} spot={spot} vol={vol} T={T} r={r} />
+            )}
 
             <div className="pt-3 border-t border-border">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-3 px-1">Market Inputs</div>
@@ -156,13 +203,13 @@ export function OptionsView() {
                 <SummaryCard
                   label="Max Profit"
                   value={fmtInfinity(resp.curve.maxProfit)}
-                  sub={resp.curve.maxProfit === Infinity ? "Unlimited" : "Defined"}
+                  sub={resp.curve.maxProfit === "unlimited" ? "Unlimited" : "Defined"}
                   tone="bull"
                 />
                 <SummaryCard
                   label="Max Loss"
                   value={fmtInfinity(resp.curve.maxLoss)}
-                  sub={resp.curve.maxLoss === -Infinity ? "Undefined" : "Defined"}
+                  sub={resp.curve.maxLoss === "unlimited" ? "Undefined" : "Defined"}
                   tone="bear"
                 />
                 <SummaryCard
@@ -305,10 +352,11 @@ function viewColor(view: string): string {
   return "text-amber-400";
 }
 
-function fmtInfinity(v: number): string {
-  if (v === Infinity) return "∞";
+function fmtInfinity(v: number | string): string {
+  if (v === "unlimited" || v === Infinity) return "∞";
   if (v === -Infinity) return "-∞";
-  return `$${v.toFixed(2)}`;
+  if (typeof v === "number") return `$${v.toFixed(2)}`;
+  return String(v);
 }
 
 function ParamSlider({ label, value, min, max, step, prefix = "", suffix = "", format, onChange }: {
@@ -357,5 +405,114 @@ function GreekCard({ name, value, desc, tone }: { name: string; value: string; d
       <div className={cn("text-base font-bold font-mono tnum", color)}>{value}</div>
       <div className="text-[10px] text-muted-foreground">{desc}</div>
     </Card>
+  );
+}
+
+function CustomLegEditor({ legs, setLegs, spot, vol, T, r }: {
+  legs: OptionLeg[];
+  setLegs: (l: OptionLeg[]) => void;
+  spot: number;
+  vol: number;
+  T: number;
+  r: number;
+}) {
+  const updateLeg = (id: string, patch: Partial<OptionLeg>) => {
+    setLegs(legs.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  };
+  const removeLeg = (id: string) => setLegs(legs.filter((l) => l.id !== id));
+  const addLeg = (type: OptionType) => {
+    const strike = Math.round(spot);
+    const premium = Math.max(0.01, bsPrice(type, spot, strike, T, r, vol));
+    setLegs([...legs, { id: newLegId(), type, action: "buy", strike, premium, quantity: 1 }]);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2 px-1">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Custom Legs</div>
+        <Badge variant="outline" className="text-[9px] font-mono">{legs.length} leg{legs.length !== 1 ? "s" : ""}</Badge>
+      </div>
+      <div className="space-y-2">
+        {legs.map((leg, i) => (
+          <div key={leg.id} className="rounded-md border border-border bg-card p-2.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono text-muted-foreground">Leg #{i + 1}</span>
+              <button
+                onClick={() => removeLeg(leg.id)}
+                className="text-muted-foreground hover:text-rose-400 p-0.5 rounded hover:bg-muted/60"
+                title="Remove leg"
+              >
+                <Icons.Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={leg.type} onValueChange={(v) => updateLeg(leg.id, { type: v as OptionType, premium: Math.max(0.01, bsPrice(v as OptionType, spot, leg.strike, T, r, vol)) })}>
+                <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="call">Call</SelectItem>
+                  <SelectItem value="put">Put</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={leg.action} onValueChange={(v) => updateLeg(leg.id, { action: v as PositionAction })}>
+                <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buy">Buy</SelectItem>
+                  <SelectItem value="sell">Sell</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[9px] uppercase text-muted-foreground">Strike</label>
+                <Input
+                  type="number"
+                  value={leg.strike}
+                  onChange={(e) => {
+                    const strike = Number(e.target.value);
+                    const premium = Math.max(0.01, bsPrice(leg.type, spot, strike, T, r, vol));
+                    updateLeg(leg.id, { strike, premium });
+                  }}
+                  className="h-7 text-[11px] font-mono tnum"
+                  step={1}
+                />
+              </div>
+              <div>
+                <label className="text-[9px] uppercase text-muted-foreground">Premium</label>
+                <Input
+                  type="number"
+                  value={leg.premium}
+                  onChange={(e) => updateLeg(leg.id, { premium: Math.max(0.01, Number(e.target.value)) })}
+                  className="h-7 text-[11px] font-mono tnum"
+                  step={0.01}
+                />
+              </div>
+              <div>
+                <label className="text-[9px] uppercase text-muted-foreground">Qty</label>
+                <Input
+                  type="number"
+                  value={leg.quantity}
+                  onChange={(e) => updateLeg(leg.id, { quantity: Math.max(1, Math.round(Number(e.target.value))) })}
+                  className="h-7 text-[11px] font-mono tnum"
+                  step={1}
+                  min={1}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          onClick={() => addLeg("call")}
+          className="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+        >
+          <Icons.Plus className="h-3 w-3" /> Add Call Leg
+        </button>
+        <button
+          onClick={() => addLeg("put")}
+          className="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+        >
+          <Icons.Plus className="h-3 w-3" /> Add Put Leg
+        </button>
+      </div>
+    </div>
   );
 }
