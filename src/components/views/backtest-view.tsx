@@ -331,6 +331,25 @@ export function BacktestView() {
                 <UnderwaterChart equity={result.equity} />
               </Card>
 
+              {/* Rolling Sharpe ratio chart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icons.Activity className="h-3.5 w-3.5 text-primary" /> Rolling Sharpe Ratio
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Trailing 63-day Sharpe — shows how risk-adjusted performance evolves over time</p>
+                  </div>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    Avg: {(() => {
+                      const sr = RollingSharpeChart({ equity: result.equity, window: 63, render: false });
+                      return sr.toFixed(2);
+                    })()}
+                  </Badge>
+                </div>
+                <RollingSharpeChart equity={result.equity} window={63} />
+              </Card>
+
               {/* Monthly returns heatmap + return distribution */}
               <div className="grid lg:grid-cols-2 gap-4">
                 <Card className="p-4">
@@ -867,6 +886,54 @@ function UnderwaterChart({ equity }: { equity: BacktestResult["equity"] }) {
         <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${v}d`} stroke="var(--muted-foreground)" width={36} />
         <ChartTooltip content={<ChartTooltipContent />} formatter={(v: any) => [`${v} days`, "Underwater"]} />
         <Area dataKey="days" type="monotone" stroke="oklch(0.65 0.17 220)" strokeWidth={1.5} fill="url(#underwaterFill)" />
+      </AreaChart>
+    </ChartContainer>
+  );
+}
+
+// Rolling Sharpe ratio chart
+function RollingSharpeChart({ equity, window, render = true }: { equity: BacktestResult["equity"]; window: number; render?: boolean }) {
+  const { data, avg } = React.useMemo(() => {
+    if (equity.length < window + 1) return { data: [], avg: 0 };
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push(equity[i].equity / equity[i - 1].equity - 1);
+    }
+    const rolling: { date: string; sharpe: number }[] = [];
+    for (let i = window - 1; i < returns.length; i++) {
+      let sum = 0, sumSq = 0;
+      for (let j = i - window + 1; j <= i; j++) { sum += returns[j]; sumSq += returns[j] * returns[j]; }
+      const mean = sum / window;
+      const variance = Math.max(sumSq / window - mean * mean, 0);
+      const std = Math.sqrt(variance);
+      const sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
+      rolling.push({ date: equity[i + 1].date, sharpe });
+    }
+    const avg = rolling.length > 0 ? rolling.reduce((a, b) => a + b.sharpe, 0) / rolling.length : 0;
+    return { data: rolling, avg };
+  }, [equity, window]);
+
+  if (!render) return avg;
+
+  if (data.length === 0) return <div className="text-xs text-muted-foreground">Insufficient data for rolling Sharpe</div>;
+
+  return (
+    <ChartContainer config={{ sharpe: { label: "Sharpe", color: "var(--chart-1)" } }} className="aspect-[3/1] w-full">
+      <AreaChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+        <defs>
+          <linearGradient id="sharpeFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => String(v).slice(0, 7)} interval="preserveStartEnd" minTickGap={40} stroke="var(--muted-foreground)" />
+        <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={36} tickFormatter={(v) => v.toFixed(1)} />
+        <ChartTooltip content={<ChartTooltipContent />} formatter={(v: any) => [Number(v).toFixed(2), "Sharpe"]} />
+        <ReferenceLine y={0} stroke="var(--border)" />
+        <ReferenceLine y={1} stroke="var(--muted-foreground)" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: "1.0", fill: "var(--muted-foreground)", fontSize: 9, position: "right" }} />
+        <ReferenceLine y={2} stroke="var(--muted-foreground)" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: "2.0", fill: "var(--muted-foreground)", fontSize: 9, position: "right" }} />
+        <Area dataKey="sharpe" type="monotone" stroke="var(--chart-1)" strokeWidth={1.5} fill="url(#sharpeFill)" />
       </AreaChart>
     </ChartContainer>
   );

@@ -304,6 +304,9 @@ export function OptionsView() {
               {/* Greeks vs Spot chart */}
               <GreeksVsSpotChart preset={presetId} strategy={resp.strategy} spot={resp.spot} vol={resp.vol} T={resp.T} r={resp.r} mode={mode} customLegs={customLegs} />
 
+              {/* Implied volatility smile/skew chart */}
+              <VolSmileChart spot={resp.spot} atmVol={resp.vol} />
+
               {/* Legs table */}
               <Card className="p-4">
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
@@ -734,6 +737,102 @@ function GreeksVsSpotChart({ preset, strategy, spot, vol, T, r, mode, customLegs
             </button>
           );
         })}
+      </div>
+    </Card>
+  );
+}
+
+// Implied volatility smile/skew chart
+// Models the typical equity-style skew: IV(K) = ATM*(1 - 2*delta*(ln(K/S)) + 3*smile*(ln(K/S))²)
+// where delta<0 makes OTM puts richer than OTM calls (negative skew).
+function VolSmileChart({ spot, atmVol }: { spot: number; atmVol: number }) {
+  const [skew, setSkew] = React.useState(-1.5); // negative = puts richer (equity-style)
+  const [smile, setSmile] = React.useState(0.8); // curvature
+
+  const data = React.useMemo(() => {
+    const points: { strike: number; iv: number; moneyness: number }[] = [];
+    const n = 41;
+    const minK = spot * 0.7;
+    const maxK = spot * 1.3;
+    for (let i = 0; i < n; i++) {
+      const K = minK + (maxK - minK) * (i / (n - 1));
+      const m = Math.log(K / spot); // log-moneyness
+      const iv = atmVol * (1 + skew * m + smile * m * m);
+      points.push({ strike: K, iv: Math.max(iv, 0.01), moneyness: K / spot });
+    }
+    return points;
+  }, [spot, atmVol, skew, smile]);
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Icons.Activity className="h-3.5 w-3.5 text-rose-400" /> Implied Volatility Smile
+          </h3>
+          <p className="text-[11px] text-muted-foreground">Parametric smile model — IV as a function of strike. Negative skew = OTM puts richer (equity-style)</p>
+        </div>
+      </div>
+      <ChartContainer config={{ iv: { label: "IV", color: "var(--chart-2)" } }} className="aspect-[2.5/1] w-full">
+        <LineChart data={data} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis
+            dataKey="strike"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            tick={{ fontSize: 9 }}
+            tickFormatter={(v) => `$${v.toFixed(0)}`}
+            stroke="var(--muted-foreground)"
+          />
+          <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={40} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(v: any) => [`${(Number(v) * 100).toFixed(2)}%`, "Implied Vol"]}
+            labelFormatter={(l: any) => `Strike: $${Number(l).toFixed(2)}`}
+          />
+          <ReferenceLine x={spot} stroke="var(--accent-gold)" strokeDasharray="4 4" label={{ value: "ATM", position: "top", fill: "var(--accent-gold)", fontSize: 10 }} />
+          <Line dataKey="iv" type="monotone" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
+        </LineChart>
+      </ChartContainer>
+      <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-border">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Skew</label>
+            <span className="text-[11px] font-mono font-semibold tnum bg-muted/60 px-1.5 py-0.5 rounded">{skew.toFixed(2)}</span>
+          </div>
+          <input
+            type="range" min={-3} max={0} step={0.1} value={skew}
+            onChange={(e) => setSkew(Number(e.target.value))}
+            className="w-full h-1.5"
+          />
+          <div className="flex justify-between text-[9px] text-muted-foreground/60 font-mono"><span>-3.0 (puts rich)</span><span>0 (flat)</span></div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Smile (Curvature)</label>
+            <span className="text-[11px] font-mono font-semibold tnum bg-muted/60 px-1.5 py-0.5 rounded">{smile.toFixed(2)}</span>
+          </div>
+          <input
+            type="range" min={0} max={3} step={0.1} value={smile}
+            onChange={(e) => setSmile(Number(e.target.value))}
+            className="w-full h-1.5"
+          />
+          <div className="flex justify-between text-[9px] text-muted-foreground/60 font-mono"><span>0 (no smile)</span><span>3.0 (steep)</span></div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">OTM Put (0.8K)</div>
+          <div className="text-xs font-mono font-bold tnum text-rose-400">{(atmVol * (1 + skew * Math.log(0.8) + smile * Math.log(0.8) ** 2) * 100).toFixed(1)}%</div>
+        </div>
+        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">ATM</div>
+          <div className="text-xs font-mono font-bold tnum text-amber-400">{(atmVol * 100).toFixed(1)}%</div>
+        </div>
+        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">OTM Call (1.2K)</div>
+          <div className="text-xs font-mono font-bold tnum text-emerald-400">{(atmVol * (1 + skew * Math.log(1.2) + smile * Math.log(1.2) ** 2) * 100).toFixed(1)}%</div>
+        </div>
       </div>
     </Card>
   );

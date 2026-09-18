@@ -385,3 +385,50 @@ Unresolved issues / risks:
 - The glossary has 327 of the paper's 900+ — could keep expanding toward 400+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add a volatility smile/skew visualization in the Options Lab (implied vol across strikes); (d) add more glossary terms (toward 400+); (e) add a rolling Sharpe ratio chart; (f) add an interactive payoff diagram where the user can drag the spot line.
+
+---
+Task ID: 9 (cron review round 8)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–8; confirmed app had 151 strategies, 10 backtest strategies, 327 glossary terms, 8 views, Greeks vs Spot chart, underwater chart, Compare Backtests, pACF, options export, related strategies graph, ACF, share permalinks.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added rolling Sharpe ratio chart to the Backtest Lab:
+  - Built `RollingSharpeChart` component that computes a trailing 63-day Sharpe ratio (annualized) at each point along the equity curve. Includes an `Avg:` badge in the header showing the mean rolling Sharpe.
+  - Renders as a filled area chart with reference lines at Sharpe = 0, 1.0, and 2.0 (typical "good"/"excellent" thresholds).
+  - Placed between the underwater chart and the monthly heatmap.
+- Phase 2 — Added implied volatility smile/skew chart to the Options Lab:
+  - Built `VolSmileChart` component that models the equity-style smile parametrically: IV(K) = ATM·(1 + skew·ln(K/S) + smile·ln(K/S)²).
+  - Interactive: two sliders for skew (-3 to 0, negative = puts richer, equity-style) and smile/curvature (0 to 3). Chart updates live.
+  - Includes 3 summary cards showing the implied vol at OTM Put (0.8K), ATM, and OTM Call (1.2K) — colored rose/amber/emerald so users see the skew visually.
+  - Placed after the Greeks vs Spot chart, before the legs table.
+- Phase 3 — Expanded glossary 327 → 374 terms:
+  - Added 47 new terms across 7 categories: 6 macro/term-structure terms (backwardation, contango, cost of carry, forward curve, spot-future parity, term structure); 8 options/vol-model terms (BSM, Garman-Kohlhagen, Heston, local vol, stochastic vol, SABR, vol arbitrage, vol term structure); 9 risk terms (beta-weighted, statistical factor model, Greeks aggregation, marginal risk contribution, max entropy, parametric VaR, risk budgeting, semi-deviation, spectral risk measure); 8 fixed-income terms (basis commodity, CTD, convexity adjustment futures, DV01-neutral, OIS discounting, roll-down bonds, swap rate, TED spread); 8 trading/backtesting terms (algorithmic trading, backtest overfitting, data mining bias, forward testing, look-ahead bias, OOS test, parameter stability, signal-to-noise ratio); 8 stocks/fundamentals terms (book value, dividend yield, EPS, FCF, net margin, ROE, sector ETF, stock buyback).
+  - Updated dashboard stat: "Glossary Terms: 374".
+  - Updated about view glossary feature card description.
+- Phase 4 — Styling polish:
+  - Rolling Sharpe chart: reference lines at 1.0 and 2.0 thresholds, area gradient fill.
+  - Vol smile chart: skew + curvature sliders with descriptive labels, 3 colored summary cards (OTM put / ATM / OTM call) showing the skew numerically.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 374 (up from 327).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "Compare Backtests" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (Bollinger Bands, 750 bars) → 750 equity points (sufficient for rolling Sharpe with a 63-day window), Sharpe 0.44.
+  - `POST /api/options-greeks` (long-straddle preset) → 41 spots across $60-$140 — smile chart input confirmed.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New rolling Sharpe ratio chart in the Backtest Lab — trailing 63-day annualized Sharpe with reference thresholds at 1.0/2.0 and an Avg badge.
+- New interactive implied volatility smile/skew chart in the Options Lab — parametric IV(K) model with skew + curvature sliders and 3 colored summary cells (OTM put / ATM / OTM call) showing the skew numerically.
+- Glossary expanded 327 → 374 terms across 7 categories (47 new terms covering term-structure mechanics, stochastic-vol models, risk-budgeting theory, fixed-income futures, backtesting pitfalls, and equity fundamentals).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 374 of the paper's 900+ — could keep expanding toward 450+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive draggable payoff diagram (user drags the spot line); (d) add more glossary terms (toward 450+); (e) add a return-density / KDE chart (kernel density estimate of returns); (f) add an options strategy "what-if" scenario (e.g. "what if IV rises 5%?").
