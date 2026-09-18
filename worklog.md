@@ -98,3 +98,56 @@ Unresolved issues / risks:
 - The strategy dataset is ~120 (curated); headline still says "151" (the paper's title). Expanding toward the full 151 remains a future task.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) expand the strategy dataset toward the full 151 (add the remaining ~30 strategies from the paper's TOC, especially the Options chapter which has 50+ structures); (b) add a Glossary view drawn from the paper's 900+ definitions; (c) add more chart detail / polish — e.g. drawdown chart, return distribution histogram in the backtest view; (d) add a "share strategy" link / permalink feature; (e) add keyboard shortcuts for navigation.
+
+---
+Task ID: 3 (cron review round 2)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1 & 2; confirmed app had 10 backtest strategies, 14 options presets, 6 views, favorites + custom builder. Strategy count was 116 across 19 asset classes.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added a new Glossary view (7th view):
+  - Created `src/lib/glossary-data.ts` with 80 curated quant finance terms across 7 categories (Options & Greeks, Volatility, Fixed Income, Stocks & Factors, Risk & Portfolio, Macro & FX, Trading & Execution). Each term has: term, category, definition, optional relatedStrategy link, optional seeAlso cross-references. Includes `searchGlossary()` and category metadata.
+  - Built `src/components/views/glossary-view.tsx` — searchable, category-filtered glossary with alphabetical grouping (A-Z letter headers). Each term card expands on click to show the full definition + related-strategy link + see-also badges. Uses Framer Motion for smooth expand/collapse.
+  - Added "Glossary" to NAV_ITEMS in `src/components/app-shell.tsx` and wired it into `src/app/page.tsx` view router.
+  - Added "favorites" to the ViewId type (for future use).
+- Phase 2 — Expanded strategy dataset from 116 → 149 strategies:
+  - Added 33 new strategies across multiple chapters:
+    - Options (Ch.2): 24 new strategies — short call, short put, covered put, synthetic long/short stock, bull put spread (credit), bear call spread (credit), short straddle, short strangle, modified butterfly, long/short put butterfly, short call/put butterfly, long/short iron butterfly, long put condor, short call/put condor, short iron condor, put ratio backspread, ratio call/put spread, all 4 seagull spread variants.
+    - Structured (Ch.11): 3 new — CDO curve trades, tranche hedging, CDS hedging.
+    - Distressed (Ch.15): 2 new — loan-to-own, distress risk management.
+    - Real Estate (Ch.16): 3 new — economic diversification, property+geo diversification, inflation hedging.
+    - Tax Arb (Ch.13): 1 new — cross-border tax arb with options.
+    - Cash (Ch.17): 2 new — money laundering (anti-pattern), loan sharking (anti-pattern).
+  - Updated dashboard stats: "Trading Strategies: 149", "Asset Classes: 19", "Glossary Terms: 60+".
+  - Updated dashboard hero headline: "Explore 149 Trading Strategies".
+  - Updated about view feature cards: 4 cards (Library, Backtest Lab, Options Lab, Glossary) with updated descriptions.
+- Phase 3 — Added drawdown chart to the Backtest Lab:
+  - Added a new "Drawdown" card in `src/components/views/backtest-view.tsx` between the price/position chart and the trades table. Computes peak-to-trough drawdown from the equity curve inline, renders as a filled area chart (rose/bear color) with the max drawdown shown as a badge.
+- Phase 4 — Styling polish:
+  - Added a "Glossary" CTA button to the dashboard's CTA strip.
+  - Updated CTA strip text to mention all features (10 backtest strategies, custom builder, glossary).
+  - Updated about view "What This Terminal Does" section to 4 feature cards (was 3) with Glossary added.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 149 (verified via grep).
+  - Glossary term count: 80 (exceeds the 60+ advertised).
+  - SSR renders: "149 Trading Strategies", "Glossary Terms", "Backtestable Models", "Glossary" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (Bollinger Bands, 400 bars) → maxDD 10.97%, 16 trades, 400 equity points — drawdown chart data confirmed.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New Glossary view (7th view) with 80 searchable quant finance definitions across 7 categories.
+- Strategy dataset expanded 116 → 149 (33 new strategies, mostly from the Options chapter which had 50+ structures in the paper).
+- New drawdown chart in the Backtest Lab (peak-to-trough visualization with max DD badge).
+- Styling polish: updated stats, hero headline, CTA strip, about view feature cards.
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- Strategy count is now 149 of the paper's ~151. The remaining 2 could be added in a future round.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add the final 2 strategies to reach the full 151; (b) add more glossary terms (the paper has 900+; we have 80); (c) add a monthly returns heatmap to the backtest view; (d) add keyboard shortcuts (e.g. '/' to focus search, number keys for nav); (e) add a "recently viewed" strategies section; (f) add export/share functionality for backtest results.

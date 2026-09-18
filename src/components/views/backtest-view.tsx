@@ -221,6 +221,47 @@ export function BacktestView() {
                 </div>
               </Card>
 
+              {/* Drawdown chart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icons.TrendingDown className="h-3.5 w-3.5 text-rose-400" /> Drawdown
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Peak-to-trough decline (%) from the running max equity</p>
+                  </div>
+                  <Badge variant="outline" className="text-rose-400 border-rose-500/30 font-mono text-[10px]">
+                    Max: -{(result.metrics.maxDrawdown * 100).toFixed(2)}%
+                  </Badge>
+                </div>
+                <ChartContainer config={{ dd: { label: "Drawdown", color: "var(--bear)" } }} className="aspect-[3/1] w-full">
+                  <AreaChart
+                    data={(() => {
+                      let peak = result.equity[0].equity;
+                      return result.equity.map((e) => {
+                        if (e.equity > peak) peak = e.equity;
+                        const dd = e.equity / peak - 1;
+                        return { date: e.date, dd: dd * 100 };
+                      });
+                    })()}
+                    margin={{ top: 4, right: 4, left: 4, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--bear)" stopOpacity={0.05} />
+                        <stop offset="100%" stopColor="var(--bear)" stopOpacity={0.4} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => v.slice(0, 7)} interval="preserveStartEnd" minTickGap={40} stroke="var(--muted-foreground)" />
+                    <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${v.toFixed(0)}%`} stroke="var(--muted-foreground)" width={36} />
+                    <ChartTooltip content={<ChartTooltipContent />} formatter={(v: any) => [`${Number(v).toFixed(2)}%`, "Drawdown"]} />
+                    <ReferenceLine y={0} stroke="var(--border)" />
+                    <Area dataKey="dd" type="monotone" stroke="var(--bear)" strokeWidth={1.5} fill="url(#ddFill)" />
+                  </AreaChart>
+                </ChartContainer>
+              </Card>
+
               {/* Trades table */}
               {result.trades.length > 0 && (
                 <Card className="p-4">

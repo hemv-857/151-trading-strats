@@ -7,6 +7,7 @@ import { LibraryView } from "@/components/views/library-view";
 import { BacktestView } from "@/components/views/backtest-view";
 import { OptionsView } from "@/components/views/options-view";
 import { CompareView } from "@/components/views/compare-view";
+import { GlossaryView } from "@/components/views/glossary-view";
 import { AboutView } from "@/components/views/about-view";
 import { StrategyDetailDrawer } from "@/components/strategy-detail-drawer";
 
@@ -20,6 +21,7 @@ export default function Home() {
       {view === "backtest" && <BacktestView />}
       {view === "options" && <OptionsView />}
       {view === "compare" && <CompareView />}
+      {view === "glossary" && <GlossaryView />}
       {view === "about" && <AboutView />}
       <StrategyDetailDrawer />
     </AppShell>

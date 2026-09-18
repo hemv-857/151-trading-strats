@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
-export type ViewId = "dashboard" | "library" | "backtest" | "options" | "compare" | "about" | "glossary";
+export type ViewId = "dashboard" | "library" | "backtest" | "options" | "compare" | "about" | "glossary" | "favorites";
 
 interface AppState {
   view: ViewId;

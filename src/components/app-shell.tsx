@@ -25,10 +25,11 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", desc: "Overview & featured" },
-  { id: "library", label: "Strategy Library", icon: "Library", desc: "Browse all 151 strategies" },
+  { id: "library", label: "Strategy Library", icon: "Library", desc: "Browse all strategies" },
   { id: "backtest", label: "Backtest Lab", icon: "FlaskConical", desc: "Run quantitative backtests" },
   { id: "options", label: "Options Lab", icon: "LineChart", desc: "Payoff diagrams & greeks" },
   { id: "compare", label: "Compare", icon: "GitCompare", desc: "Side-by-side analysis" },
+  { id: "glossary", label: "Glossary", icon: "BookMarked", desc: "Quant finance definitions" },
   { id: "about", label: "About the Paper", icon: "BookOpen", desc: "Source & methodology" },
 ];
 

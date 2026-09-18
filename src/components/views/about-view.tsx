@@ -74,27 +74,34 @@ export function AboutView() {
         <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
           <Icons.Cpu className="h-4 w-4 text-primary" /> What This Terminal Does
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <FeatureCard
             icon="Library"
             title="Strategy Library"
-            desc="Browse all 151+ strategies with searchable filters by asset class, market view, type, risk and complexity. Each strategy includes its formula, key concepts, instruments, and max profit/loss."
+            desc="Browse all 149 strategies with searchable filters by asset class, market view, type, risk and complexity. Each strategy includes its formula, key concepts, instruments, and max profit/loss."
             action={() => { setLibraryCategory("all"); setView("library"); }}
             actionLabel="Open Library"
           />
           <FeatureCard
             icon="FlaskConical"
             title="Backtest Lab"
-            desc="Run 7 systematic strategies (MA crossover, channel breakout, mean reversion, momentum, pairs trading) on synthetic GBM price series with full metrics: Sharpe, Sortino, Calmar, max drawdown, win rate."
+            desc="Run 10 systematic strategies (MA, Bollinger Bands, RSI, MACD, channel breakout, mean reversion, momentum, pairs trading) on synthetic GBM price series with full metrics: Sharpe, Sortino, Calmar, max drawdown, win rate."
             action={() => setView("backtest")}
             actionLabel="Open Lab"
           />
           <FeatureCard
             icon="LineChart"
             title="Options Lab"
-            desc="Visualize payoff diagrams for 13+ option structures (straddles, butterflies, iron condors, collars). Live Black-Scholes Greeks, breakevens, and net cost. Adjust spot, vol, expiry and rate."
+            desc="Visualize payoff diagrams for 13+ option structures (straddles, butterflies, iron condors, collars) plus a custom strategy builder. Live Black-Scholes Greeks, breakevens, and net cost."
             action={() => setView("options")}
             actionLabel="Open Lab"
+          />
+          <FeatureCard
+            icon="BookMarked"
+            title="Glossary"
+            desc="60+ curated quant finance definitions across 7 categories — from options Greeks to yield-curve trades. Searchable, expandable, with related-strategy links."
+            action={() => setView("glossary")}
+            actionLabel="Open Glossary"
           />
         </div>
       </section>

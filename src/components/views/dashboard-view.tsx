@@ -13,10 +13,10 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Area, AreaChart, XAxis, YAxis, ReferenceLine } from "recharts";
 
 const STATS = [
-  { label: "Trading Strategies", value: 151, suffix: "", icon: "Layers", color: "text-emerald-400" },
-  { label: "Asset Classes", value: 18, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
+  { label: "Trading Strategies", value: 149, suffix: "", icon: "Layers", color: "text-emerald-400" },
+  { label: "Asset Classes", value: 19, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
   { label: "Backtestable Models", value: 10, suffix: "", icon: "FlaskConical", color: "text-sky-400" },
-  { label: "Options Presets", value: 14, suffix: "", icon: "LineChart", color: "text-violet-400" },
+  { label: "Glossary Terms", value: 60, suffix: "+", icon: "BookMarked", color: "text-violet-400" },
 ];
 
 const HERO_CHART = [
@@ -68,7 +68,7 @@ export function DashboardView() {
                 transition={{ duration: 0.4, delay: 0.05 }}
                 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.05] mb-3"
               >
-                Explore <span className="text-primary">151 Trading Strategies</span> across every asset class
+                Explore <span className="text-primary">149 Trading Strategies</span> across every asset class
               </motion.h1>
 
               <motion.p
@@ -259,9 +259,10 @@ export function DashboardView() {
             <div className="flex-1">
               <h3 className="text-xl font-bold mb-2">Ready to run the numbers?</h3>
               <p className="text-sm text-muted-foreground max-w-2xl">
-                The Backtest Lab runs 7 systematic strategies on synthetic GBM price series with full metrics
-                (Sharpe, Sortino, max drawdown). The Options Lab renders live payoff diagrams with Black-Scholes
-                Greeks for 13+ preset structures.
+                The Backtest Lab runs 10 systematic strategies on synthetic GBM price series with full metrics
+                (Sharpe, Sortino, max drawdown, drawdown chart). The Options Lab renders live payoff diagrams with
+                Black-Scholes Greeks for 13+ preset structures plus a custom strategy builder. The Glossary defines
+                60+ key quant finance terms.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
@@ -276,6 +277,12 @@ export function DashboardView() {
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:border-primary/40"
               >
                 <Icons.LineChart className="h-4 w-4" /> Options Lab
+              </button>
+              <button
+                onClick={() => setView("glossary")}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:border-primary/40"
+              >
+                <Icons.BookMarked className="h-4 w-4" /> Glossary
               </button>
             </div>
           </div>
