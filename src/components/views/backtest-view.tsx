@@ -377,6 +377,20 @@ export function BacktestView() {
                 </Card>
               </div>
 
+              {/* Return density (KDE) chart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icons.Waves className="h-3.5 w-3.5 text-cyan-400" /> Return Density (KDE)
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Smoothed kernel density estimate vs normal distribution — reveals fat tails / skew</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-mono">KDE vs Normal</Badge>
+                </div>
+                <ReturnDensityChart equity={result.equity} />
+              </Card>
+
               {/* ACF + pACF (autocorrelation) charts */}
               <div className="grid lg:grid-cols-2 gap-4">
                 <Card className="p-4">
@@ -936,5 +950,95 @@ function RollingSharpeChart({ equity, window, render = true }: { equity: Backtes
         <Area dataKey="sharpe" type="monotone" stroke="var(--chart-1)" strokeWidth={1.5} fill="url(#sharpeFill)" />
       </AreaChart>
     </ChartContainer>
+  );
+}
+
+// Return density (KDE) chart — Gaussian kernel density vs normal
+function ReturnDensityChart({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    if (equity.length < 30) return { points: [], stats: null };
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push(equity[i].equity / equity[i - 1].equity - 1);
+    }
+    const n = returns.length;
+    const mean = returns.reduce((a, b) => a + b, 0) / n;
+    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance);
+    if (std === 0) return { points: [], stats: null };
+    // Silverman's rule for bandwidth
+    const h = 1.06 * std * Math.pow(n, -0.2);
+    const min = mean - 4 * std;
+    const max = mean + 4 * std;
+    const numPoints = 80;
+    const points: { x: number; kde: number; normal: number }[] = [];
+    const sqrt2pi = Math.sqrt(2 * Math.PI);
+    for (let i = 0; i < numPoints; i++) {
+      const x = min + (max - min) * (i / (numPoints - 1));
+      // KDE: sum of Gaussian kernels centered at each data point
+      let kdeSum = 0;
+      for (const r of returns) {
+        const u = (x - r) / h;
+        kdeSum += Math.exp(-0.5 * u * u) / sqrt2pi;
+      }
+      const kde = kdeSum / (n * h);
+      // Normal PDF with same mean/std
+      const z = (x - mean) / std;
+      const normal = Math.exp(-0.5 * z * z) / (std * sqrt2pi);
+      points.push({ x, kde, normal });
+    }
+    // Kurtosis (excess)
+    const kurt = returns.reduce((a, b) => a + ((b - mean) / std) ** 4, 0) / n - 3;
+    const skew = returns.reduce((a, b) => a + ((b - mean) / std) ** 3, 0) / n;
+    return { points, stats: { mean, std, skew, kurt, n } };
+  }, [equity]);
+
+  if (!data.stats) return <div className="text-xs text-muted-foreground">Insufficient data for KDE</div>;
+
+  return (
+    <div className="space-y-2">
+      <ChartContainer config={{ kde: { label: "KDE", color: "var(--chart-2)" }, normal: { label: "Normal", color: "var(--muted-foreground)" } }} className="aspect-[2.5/1] w-full">
+        <AreaChart data={data.points} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+          <defs>
+            <linearGradient id="kdeFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis
+            dataKey="x"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            tick={{ fontSize: 9 }}
+            tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+            stroke="var(--muted-foreground)"
+          />
+          <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={36} tickFormatter={(v) => v.toFixed(1)} />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(v: any, name: any) => [Number(v).toFixed(2), name === "kde" ? "KDE" : "Normal"]}
+            labelFormatter={(l: any) => `Return: ${(Number(l) * 100).toFixed(3)}%`}
+          />
+          <ReferenceLine x={0} stroke="var(--border)" strokeWidth={1} />
+          <ReferenceLine x={data.stats.mean} stroke="var(--accent-gold)" strokeDasharray="3 3" label={{ value: "μ", position: "top", fill: "var(--accent-gold)", fontSize: 10 }} />
+          <Line dataKey="normal" type="monotone" stroke="var(--muted-foreground)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
+          <Area dataKey="kde" type="monotone" stroke="var(--chart-2)" strokeWidth={2} fill="url(#kdeFill)" dot={false} />
+        </AreaChart>
+      </ChartContainer>
+      <div className="grid grid-cols-4 gap-2 pt-1">
+        <Stat label="Skewness" value={data.stats.skew.toFixed(3)} tone={Math.abs(data.stats.skew) > 0.5 ? "bear" : "neutral"} />
+        <Stat label="Excess Kurt" value={data.stats.kurt.toFixed(3)} tone={data.stats.kurt > 3 ? "bear" : "neutral"} />
+        <Stat label="Mean" value={`${(data.stats.mean * 100).toFixed(3)}%`} tone="neutral" />
+        <Stat label="Std Dev" value={`${(data.stats.std * 100).toFixed(3)}%`} tone="neutral" />
+      </div>
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm" style={{ backgroundColor: "var(--chart-2)" }} /> KDE (actual)</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm" style={{ backgroundColor: "var(--muted-foreground)" }} /> Normal (same μ,σ)</span>
+        </div>
+        <span className="text-[9px]">High kurtosis = fat tails (left tail heavier than normal)</span>
+      </div>
+    </div>
   );
 }

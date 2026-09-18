@@ -432,3 +432,50 @@ Unresolved issues / risks:
 - The glossary has 374 of the paper's 900+ — could keep expanding toward 450+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive draggable payoff diagram (user drags the spot line); (d) add more glossary terms (toward 450+); (e) add a return-density / KDE chart (kernel density estimate of returns); (f) add an options strategy "what-if" scenario (e.g. "what if IV rises 5%?").
+
+---
+Task ID: 10 (cron review round 9)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–9; confirmed app had 151 strategies, 10 backtest strategies, 374 glossary terms, 8 views, rolling Sharpe, vol smile, Greeks vs Spot, underwater chart, Compare Backtests, pACF, options export, related strategies graph, ACF, share permalinks.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added return density (KDE) chart to the Backtest Lab:
+  - Built `ReturnDensityChart` component that computes a Gaussian kernel density estimate with Silverman's bandwidth (h = 1.06·σ·n^(-1/5)) and overlays the normal distribution with the same mean/std.
+  - Renders as a filled area chart (KDE in cyan) with a dashed normal overlay, a mean (μ) reference line, and a 4-stat summary (skewness, excess kurtosis, mean, std dev). Skewness and kurtosis are colored rose when they indicate fat tails / asymmetry.
+  - Placed between the return distribution histogram and the ACF/pACF charts.
+- Phase 2 — Added IV "what-if" scenario card to the Options Lab:
+  - Built `IVScenarioCard` component with an interactive slider (-50% to +50% IV shift). Re-prices all option legs via Black-Scholes at the new IV and shows the impact on strategy cost.
+  - Includes 4 comparison cards (Base IV, New IV, Base Cost, New Cost), an impact bar with trend icon, and a 7-row scenario grid table (-50/-25/-10/0/+10/+25/+50%) showing cost + Δ for each.
+  - The `computeStrategyCost` helper re-prices legs at arbitrary IV — works for both presets and the custom builder.
+  - Placed after the vol smile chart, before the legs table.
+- Phase 3 — Expanded glossary 374 → 425 terms:
+  - Added 51 new terms across 7 categories: 10 risk/statistics terms (KDE, Silverman's rule, Q-Q plot, Jarque-Bera, Anderson-Darling, Hill estimator, copula, tail dependence, EVT, expected shortfall); 8 higher-order Greeks (Volga/Vomma, Vanna, Charm, Color, Speed, Ultima, Zomma, DvegaDtime); 8 fixed-income/credit terms (DTS, spread duration, key rate duration, spread convexity, LGD, PD, expected loss, credit migration); 10 ML terms (ML, random forest, gradient boosting, neural network, kNN, Naïve Bayes, cross-validation, feature engineering, hyperparameter tuning, ensemble method); 7 commodity/macro terms (crack spread, spark spread, crush spread, calendar spread commodity, inter-commodity spread, seasonality, weather derivative); 8 trading/microstructure terms (order flow, order book imbalance, inventory risk, adverse selection, co-location, smart order router, best execution, marking-to-market).
+  - Updated dashboard stat: "Glossary Terms: 425".
+  - Updated about view glossary feature card description.
+- Phase 4 — Styling polish:
+  - KDE chart: cyan gradient fill, μ reference line, colored skewness/kurtosis stats.
+  - IV scenario card: colored impact bar with trend icons, scenario grid with highlighted base row.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 425 (up from 374).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "Compare Backtests" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (RSI mean-reversion, 750 bars) → 750 equity points (sufficient for KDE with Silverman's bandwidth), Sharpe -0.30, maxDD 15.09%.
+  - `POST /api/options` (long iron condor) → 4 legs, netCost -1.07, delta -2.30 — IV what-if input confirmed.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New return density (KDE) chart in the Backtest Lab — Gaussian kernel density estimate vs normal, with skewness/kurtosis stats. Reveals fat tails and asymmetry that the histogram alone can't.
+- New interactive IV "what-if" scenario card in the Options Lab — slider for IV shift (-50% to +50%), re-prices the entire strategy, shows base vs new cost, impact bar, and a 7-row scenario grid.
+- Glossary expanded 374 → 425 terms across 7 categories (51 new terms covering distributional statistics, higher-order Greeks, credit-risk modeling, machine learning, commodity spreads, and market microstructure).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 425 of the paper's 900+ — could keep expanding toward 500+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive draggable payoff diagram (user drags the spot line); (d) add more glossary terms (toward 500+); (e) add a QQ-plot alongside the KDE chart; (f) add a correlation matrix heatmap for the compare-backtests view.

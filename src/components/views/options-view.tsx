@@ -307,6 +307,9 @@ export function OptionsView() {
               {/* Implied volatility smile/skew chart */}
               <VolSmileChart spot={resp.spot} atmVol={resp.vol} />
 
+              {/* IV "what-if" scenario */}
+              <IVScenarioCard strategy={resp.strategy} spot={resp.spot} vol={resp.vol} T={resp.T} r={resp.r} />
+
               {/* Legs table */}
               <Card className="p-4">
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
@@ -836,4 +839,133 @@ function VolSmileChart({ spot, atmVol }: { spot: number; atmVol: number }) {
       </div>
     </Card>
   );
+}
+
+// IV "what-if" scenario — how the strategy's net cost changes as IV shifts
+function IVScenarioCard({ strategy, spot, vol, T, r }: { strategy: any; spot: number; vol: number; T: number; r: number }) {
+  const [ivShift, setIvShift] = React.useState(0); // percentage points (-50 to +50)
+
+  const scenarios = React.useMemo(() => {
+    const shifts = [-50, -25, -10, 0, 10, 25, 50];
+    return shifts.map((s) => {
+      const newVol = Math.max(0.01, vol * (1 + s / 100));
+      const sign = s > 0 ? "+" : "";
+      return { shift: s, label: `${sign}${s}%`, vol: newVol, cost: computeStrategyCost(strategy, spot, newVol, T, r) };
+    });
+  }, [strategy, spot, vol, T, r]);
+
+  const currentCost = scenarios.find((s) => s.shift === 0)?.cost ?? 0;
+
+  const newVol = Math.max(0.01, vol * (1 + ivShift / 100));
+  const newCost = computeStrategyCost(strategy, spot, newVol, T, r);
+  const delta = newCost - currentCost;
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Icons.GitBranch className="h-3.5 w-3.5 text-amber-400" /> IV Scenario Analysis
+          </h3>
+          <p className="text-[11px] text-muted-foreground">What if implied volatility moves? Drag to see the impact on strategy cost.</p>
+        </div>
+      </div>
+
+      {/* Slider */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[10px] uppercase tracking-wide text-muted-foreground">IV Shift</label>
+          <span className={cn("text-sm font-mono font-bold tnum px-2 py-0.5 rounded", ivShift === 0 ? "bg-muted/60 text-foreground" : ivShift > 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400")}>
+            {ivShift > 0 ? "+" : ""}{ivShift}%
+          </span>
+        </div>
+        <input
+          type="range" min={-50} max={50} step={5} value={ivShift}
+          onChange={(e) => setIvShift(Number(e.target.value))}
+          className="w-full h-1.5"
+        />
+        <div className="flex justify-between text-[9px] text-muted-foreground/60 font-mono"><span>-50%</span><span>0%</span><span>+50%</span></div>
+      </div>
+
+      {/* Scenario comparison */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <div className="rounded-md border border-border bg-card p-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Base IV</div>
+          <div className="text-sm font-mono font-bold tnum">{(vol * 100).toFixed(1)}%</div>
+        </div>
+        <div className="rounded-md border border-border bg-card p-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">New IV</div>
+          <div className="text-sm font-mono font-bold tnum text-amber-400">{(newVol * 100).toFixed(1)}%</div>
+        </div>
+        <div className="rounded-md border border-border bg-card p-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Base Cost</div>
+          <div className="text-sm font-mono font-bold tnum">${Math.abs(currentCost).toFixed(2)}</div>
+        </div>
+        <div className={cn("rounded-md border p-2.5", delta > 0 ? "border-emerald-500/30 bg-emerald-500/5" : delta < 0 ? "border-rose-500/30 bg-rose-500/5" : "border-border bg-card")}>
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">New Cost</div>
+          <div className={cn("text-sm font-mono font-bold tnum", delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-foreground")}>
+            ${Math.abs(newCost).toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      {/* Impact bar */}
+      <div className={cn("rounded-md border p-3 flex items-center justify-between", delta > 0 ? "border-emerald-500/30 bg-emerald-500/5" : delta < 0 ? "border-rose-500/30 bg-rose-500/5" : "border-border bg-muted/30")}>
+        <div className="flex items-center gap-2">
+          {delta > 0 ? <Icons.TrendingUp className="h-4 w-4 text-emerald-400" /> : delta < 0 ? <Icons.TrendingDown className="h-4 w-4 text-rose-400" /> : <Icons.Minus className="h-4 w-4 text-muted-foreground" />}
+          <span className="text-xs font-medium">Impact of {ivShift > 0 ? "+" : ""}{ivShift}% IV shift</span>
+        </div>
+        <span className={cn("text-sm font-mono font-bold tnum", delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-muted-foreground")}>
+          {delta >= 0 ? "+" : ""}${delta.toFixed(2)}
+        </span>
+      </div>
+
+      {/* Scenario table */}
+      <div className="mt-3 pt-3 border-t border-border">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Scenario Grid</div>
+        <div className="rounded-md border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40">
+              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="text-left px-2 py-1.5 font-semibold">IV Shift</th>
+                <th className="text-right px-2 py-1.5 font-semibold">New IV</th>
+                <th className="text-right px-2 py-1.5 font-semibold">Cost</th>
+                <th className="text-right px-2 py-1.5 font-semibold">Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenarios.map((s) => {
+                const d = s.cost - currentCost;
+                return (
+                  <tr key={s.shift} className={cn("border-t border-border", s.shift === 0 && "bg-primary/5")}>
+                    <td className="px-2 py-1.5 font-mono text-[11px]">{s.label}</td>
+                    <td className="px-2 py-1.5 text-right font-mono tnum">{(s.vol * 100).toFixed(1)}%</td>
+                    <td className="px-2 py-1.5 text-right font-mono tnum">${Math.abs(s.cost).toFixed(2)}</td>
+                    <td className={cn("px-2 py-1.5 text-right font-mono tnum", d > 0 ? "text-emerald-400" : d < 0 ? "text-rose-400" : "text-muted-foreground")}>
+                      {d >= 0 ? "+" : ""}{d.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Helper: compute strategy net cost at a given IV (re-prices all legs via Black-Scholes)
+function computeStrategyCost(strategy: any, spot: number, vol: number, T: number, r: number): number {
+  let cost = 0;
+  for (const leg of strategy.legs) {
+    const sign = leg.action === "buy" ? 1 : -1;
+    const prem = Math.max(0.01, bsPrice(leg.type, spot, leg.strike, T, r, vol));
+    cost += sign * prem * leg.quantity;
+  }
+  if (strategy.stock) {
+    const sign = strategy.stock.action === "buy" ? 1 : -1;
+    cost += sign * strategy.stock.price * strategy.stock.shares;
+  }
+  return cost;
 }
