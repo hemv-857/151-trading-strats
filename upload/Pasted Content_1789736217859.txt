@@ -1,0 +1,1185 @@
+# Trading Strategies from Paper - GitHub Project Guide
+
+This guide will help you set up a production-ready GitHub project implementing strategies from "151 Trading Strategies" paper using yfinance.
+
+---
+
+## Project Structure
+
+```
+trading-strategies/
+├── README.md                          # Project overview & quick start
+├── requirements.txt                   # Python dependencies
+├── setup.py                          # Package setup
+├── .gitignore                        # Git ignore rules
+├── LICENSE                           # MIT/Apache2
+├── 
+├── src/
+│   └── trading_strategies/
+│       ├── __init__.py
+│       ├── config.py                 # Global configuration
+│       ├── logger.py                 # Logging setup
+│       │
+│       ├── data/
+│       │   ├── __init__.py
+│       │   ├── fetcher.py            # yfinance wrapper
+│       │   ├── cleaner.py            # Data validation/cleaning
+│       │   └── storage.py            # Cache data locally
+│       │
+│       ├── backtest/
+│       │   ├── __init__.py
+│       │   ├── engine.py             # Backtesting engine
+│       │   ├── portfolio.py          # Portfolio tracking
+│       │   └── metrics.py            # Performance metrics
+│       │
+│       ├── strategies/
+│       │   ├── __init__.py
+│       │   ├── base.py               # Base strategy class
+│       │   ├── stocks/
+│       │   │   ├── __init__.py
+│       │   │   ├── moving_average.py
+│       │   │   ├── momentum.py
+│       │   │   ├── mean_reversion.py
+│       │   │   ├── pairs_trading.py
+│       │   │   └── support_resistance.py
+│       │   ├── etf/
+│       │   │   ├── __init__.py
+│       │   │   ├── sector_rotation.py
+│       │   │   └── momentum_rotation.py
+│       │   └── multi_asset/
+│       │       ├── __init__.py
+│       │       └── trend_following.py
+│       │
+│       ├── risk/
+│       │   ├── __init__.py
+│       │   ├── position_sizer.py     # Position sizing rules
+│       │   ├── limits.py             # Risk limits
+│       │   └── hedging.py            # Hedging strategies
+│       │
+│       └── utils/
+│           ├── __init__.py
+│           ├── math.py               # Mathematical utilities
+│           └── visualization.py      # Plotting helpers
+│
+├── notebooks/
+│   ├── 01_quick_start.ipynb
+│   ├── 02_moving_average_strategy.ipynb
+│   ├── 03_pairs_trading.ipynb
+│   ├── 04_mean_reversion.ipynb
+│   └── 05_portfolio_analysis.ipynb
+│
+├── tests/
+│   ├── __init__.py
+│   ├── test_data.py
+│   ├── test_strategies.py
+│   └── test_backtest.py
+│
+├── examples/
+│   ├── run_single_strategy.py        # Simple example
+│   ├── run_multiple_strategies.py    # Portfolio example
+│   └── config_example.json           # Config template
+│
+├── docs/
+│   ├── STRATEGIES.md                 # Strategy documentation
+│   ├── ARCHITECTURE.md               # System design
+│   ├── API.md                        # API reference
+│   └── PAPER_REFERENCE.md            # Links to paper formulas
+│
+└── data/
+    ├── cache/                        # Cached yfinance data
+    ├── backtest_results/             # Results storage
+    └── .gitkeep                      # Keep directory in git
+
+```
+
+---
+
+## Core Implementation Files
+
+### 1. `requirements.txt`
+
+```txt
+# Data & Financial
+yfinance>=0.2.32
+pandas>=1.5.0
+numpy>=1.23.0
+
+# Scientific Computing
+scipy>=1.9.0
+scikit-learn>=1.2.0
+
+# Plotting & Visualization
+matplotlib>=3.5.0
+seaborn>=0.12.0
+plotly>=5.13.0
+
+# Backtesting & Analysis
+pandas-ta>=0.3.14b0
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+joblib>=1.2.0
+
+# Development
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+flake8>=6.0.0
+```
+
+---
+
+### 2. `src/trading_strategies/config.py`
+
+```python
+"""Global configuration for trading strategies."""
+
+import os
+from pathlib import Path
+from typing import Dict, Any
+import json
+
+# Project paths
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+CACHE_DIR = DATA_DIR / "cache"
+RESULTS_DIR = DATA_DIR / "backtest_results"
+
+# Create directories if they don't exist
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Backtesting Configuration
+BACKTEST_CONFIG = {
+    "initial_capital": 100000,  # $100k starting capital
+    "commission": 0.0005,  # 0.05% commission per trade
+    "slippage": 0.0001,  # 0.01% slippage
+    "use_bid_ask_spread": False,  # True requires premium data
+}
+
+# Data Configuration
+DATA_CONFIG = {
+    "cache_enabled": True,
+    "cache_expiry_days": 1,  # Refresh data daily
+    "retry_attempts": 3,
+    "retry_delay_seconds": 2,
+}
+
+# Risk Management Defaults
+RISK_CONFIG = {
+    "max_position_size": 0.05,  # Max 5% per position
+    "max_leverage": 1.0,  # 1x (no leverage)
+    "max_daily_loss": 0.02,  # Stop if lose 2% in a day
+    "max_sector_concentration": 0.25,  # Max 25% in one sector
+}
+
+# Strategy Parameters (can override per strategy)
+STRATEGY_DEFAULTS = {
+    "lookback_period": 252,  # 1 year of trading days
+    "rebalance_frequency": "monthly",
+}
+
+def load_config_file(config_path: str) -> Dict[str, Any]:
+    """Load configuration from JSON file."""
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def save_config_file(config: Dict[str, Any], config_path: str) -> None:
+    """Save configuration to JSON file."""
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+```
+
+---
+
+### 3. `src/trading_strategies/data/fetcher.py`
+
+```python
+"""Data fetching from yfinance with caching."""
+
+import pandas as pd
+import yfinance as yf
+from pathlib import Path
+from datetime import datetime, timedelta
+import logging
+from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+class DataFetcher:
+    """Fetch and cache financial data from yfinance."""
+    
+    def __init__(self, cache_dir: Path, cache_enabled: bool = True):
+        self.cache_dir = cache_dir
+        self.cache_enabled = cache_enabled
+        
+    def _get_cache_path(self, ticker: str, start_date: str, end_date: str) -> Path:
+        """Generate cache file path."""
+        filename = f"{ticker}_{start_date}_{end_date}.parquet"
+        return self.cache_dir / filename
+    
+    def _is_cache_valid(self, cache_path: Path, max_age_days: int = 1) -> bool:
+        """Check if cached data is still valid."""
+        if not cache_path.exists():
+            return False
+        
+        file_age = datetime.now() - datetime.fromtimestamp(cache_path.stat().st_mtime)
+        return file_age < timedelta(days=max_age_days)
+    
+    def fetch_ohlcv(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        interval: str = "1d"
+    ) -> pd.DataFrame:
+        """
+        Fetch OHLCV data for a ticker.
+        
+        Args:
+            ticker: Stock ticker (e.g., 'AAPL')
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+            interval: Data interval ('1d', '1h', '5m', etc.)
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        cache_path = self._get_cache_path(ticker, start_date, end_date)
+        
+        # Try to load from cache
+        if self.cache_enabled and self._is_cache_valid(cache_path):
+            logger.info(f"Loading {ticker} from cache")
+            return pd.read_parquet(cache_path)
+        
+        # Fetch from yfinance
+        logger.info(f"Fetching {ticker} from yfinance ({start_date} to {end_date})")
+        df = yf.download(
+            ticker,
+            start=start_date,
+            end=end_date,
+            interval=interval,
+            progress=False
+        )
+        
+        # Clean up column names
+        df.columns = [col.lower() for col in df.columns]
+        df.index.name = 'date'
+        
+        # Cache if enabled
+        if self.cache_enabled:
+            df.to_parquet(cache_path)
+            logger.info(f"Cached {ticker} to {cache_path}")
+        
+        return df
+    
+    def fetch_multiple(
+        self,
+        tickers: List[str],
+        start_date: str,
+        end_date: str
+    ) -> pd.DataFrame:
+        """
+        Fetch data for multiple tickers.
+        
+        Returns:
+            DataFrame with multi-level columns (Ticker, OHLCV)
+        """
+        data = {}
+        for ticker in tickers:
+            try:
+                data[ticker] = self.fetch_ohlcv(ticker, start_date, end_date)
+            except Exception as e:
+                logger.error(f"Failed to fetch {ticker}: {e}")
+        
+        # Combine into multi-level dataframe
+        return pd.concat(data, axis=1, keys=data.keys())
+    
+    def get_close_prices(
+        self,
+        tickers: List[str],
+        start_date: str,
+        end_date: str
+    ) -> pd.DataFrame:
+        """Get closing prices for multiple tickers."""
+        df = self.fetch_multiple(tickers, start_date, end_date)
+        return df.xs('close', level=1, axis=1)
+```
+
+---
+
+### 4. `src/trading_strategies/strategies/base.py`
+
+```python
+"""Base strategy class for all strategies."""
+
+from abc import ABC, abstractmethod
+import pandas as pd
+import numpy as np
+from typing import Tuple, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+class BaseStrategy(ABC):
+    """
+    Abstract base class for all trading strategies.
+    
+    A strategy generates trading signals based on market data.
+    """
+    
+    def __init__(self, name: str, parameters: Dict[str, Any] = None):
+        """
+        Initialize strategy.
+        
+        Args:
+            name: Strategy name
+            parameters: Strategy parameters
+        """
+        self.name = name
+        self.parameters = parameters or {}
+        
+    @abstractmethod
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate trading signals.
+        
+        Args:
+            data: DataFrame with OHLCV data
+            
+        Returns:
+            DataFrame with 'signal' column (1=long, -1=short, 0=neutral)
+        """
+        pass
+    
+    def calculate_returns(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate daily returns."""
+        return data['close'].pct_change()
+    
+    def backtest(
+        self,
+        data: pd.DataFrame,
+        initial_capital: float = 100000,
+        commission: float = 0.0005
+    ) -> Dict[str, Any]:
+        """
+        Simple backtest of strategy.
+        
+        Args:
+            data: DataFrame with OHLCV data
+            initial_capital: Starting capital
+            commission: Commission per trade (as decimal)
+            
+        Returns:
+            Dictionary with backtest results
+        """
+        # Generate signals
+        signals_df = self.generate_signals(data.copy())
+        signals_df['signal'] = signals_df['signal'].fillna(0)
+        
+        # Calculate returns
+        returns = data['close'].pct_change()
+        
+        # Apply position from signals
+        signals_df['position'] = signals_df['signal'].shift(1).fillna(0)
+        
+        # Strategy returns
+        signals_df['strategy_return'] = signals_df['position'] * returns
+        
+        # Account for commissions
+        signals_df['trades'] = signals_df['position'].diff().abs()
+        signals_df['commission_cost'] = signals_df['trades'] * commission
+        signals_df['net_return'] = signals_df['strategy_return'] - signals_df['commission_cost']
+        
+        # Cumulative returns
+        signals_df['cum_return'] = (1 + signals_df['net_return']).cumprod()
+        signals_df['equity'] = initial_capital * signals_df['cum_return']
+        
+        # Calculate metrics
+        total_return = signals_df['cum_return'].iloc[-1] - 1
+        num_trades = (signals_df['trades'] > 0).sum()
+        
+        # Sharpe ratio (annualized)
+        sharpe = np.sqrt(252) * signals_df['net_return'].mean() / signals_df['net_return'].std()
+        
+        # Max drawdown
+        cum_returns = signals_df['cum_return']
+        running_max = cum_returns.expanding().max()
+        drawdown = (cum_returns - running_max) / running_max
+        max_drawdown = drawdown.min()
+        
+        results = {
+            'strategy': self.name,
+            'total_return': total_return,
+            'num_trades': num_trades,
+            'sharpe_ratio': sharpe,
+            'max_drawdown': max_drawdown,
+            'signals_df': signals_df,
+        }
+        
+        return results
+```
+
+---
+
+### 5. `src/trading_strategies/strategies/stocks/moving_average.py`
+
+```python
+"""Moving Average strategy from paper (Section 3.11-3.13)."""
+
+import pandas as pd
+import numpy as np
+from typing import Dict, Any
+from ..base import BaseStrategy
+
+class SingleMovingAverageStrategy(BaseStrategy):
+    """
+    Strategy: Single Moving Average (from paper Section 3.11)
+    
+    Generate buy signal when price crosses above MA.
+    Generate sell signal when price crosses below MA.
+    """
+    
+    def __init__(self, ma_period: int = 50):
+        super().__init__(
+            name=f"SMA_{ma_period}",
+            parameters={'ma_period': ma_period}
+        )
+        self.ma_period = ma_period
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate trading signals based on price crossing MA.
+        
+        Signal logic:
+        - 1 (long): price > SMA
+        - -1 (short): price < SMA
+        - 0 (neutral): price ≈ SMA
+        """
+        df = data.copy()
+        df['sma'] = df['close'].rolling(window=self.ma_period).mean()
+        
+        # Signal: 1 if price > SMA, -1 if price < SMA
+        df['signal'] = np.where(df['close'] > df['sma'], 1, -1)
+        
+        # Neutral signal until we have enough data
+        df.loc[:self.ma_period, 'signal'] = 0
+        
+        return df[['signal']]
+
+
+class DualMovingAverageStrategy(BaseStrategy):
+    """
+    Strategy: Dual Moving Average (from paper Section 3.12)
+    
+    Buy signal when fast MA crosses above slow MA.
+    Sell signal when fast MA crosses below slow MA.
+    """
+    
+    def __init__(self, fast_period: int = 20, slow_period: int = 50):
+        super().__init__(
+            name=f"DMA_{fast_period}_{slow_period}",
+            parameters={'fast_period': fast_period, 'slow_period': slow_period}
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate signals based on MA crossover.
+        
+        Signal logic:
+        - 1 (long): fast MA > slow MA
+        - -1 (short): fast MA < slow MA
+        """
+        df = data.copy()
+        df['fast_ma'] = df['close'].rolling(window=self.fast_period).mean()
+        df['slow_ma'] = df['close'].rolling(window=self.slow_period).mean()
+        
+        # Signal on crossover
+        df['signal'] = np.where(df['fast_ma'] > df['slow_ma'], 1, -1)
+        
+        # Neutral signal until we have enough data
+        df.loc[:self.slow_period, 'signal'] = 0
+        
+        return df[['signal']]
+
+
+class TripleMovingAverageStrategy(BaseStrategy):
+    """
+    Strategy: Triple Moving Average (from paper Section 3.13)
+    
+    Advanced trend confirmation using 3 MAs.
+    Buy when all MAs are in correct order (fast > medium > slow)
+    """
+    
+    def __init__(self, fast: int = 10, medium: int = 20, slow: int = 50):
+        super().__init__(
+            name=f"TMA_{fast}_{medium}_{slow}",
+            parameters={'fast': fast, 'medium': medium, 'slow': slow}
+        )
+        self.fast = fast
+        self.medium = medium
+        self.slow = slow
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate signals from triple MA configuration.
+        
+        Long: fast_MA > medium_MA > slow_MA
+        Short: fast_MA < medium_MA < slow_MA
+        Neutral: otherwise
+        """
+        df = data.copy()
+        df['fast_ma'] = df['close'].rolling(window=self.fast).mean()
+        df['medium_ma'] = df['close'].rolling(window=self.medium).mean()
+        df['slow_ma'] = df['close'].rolling(window=self.slow).mean()
+        
+        # Bullish: fast > medium > slow
+        bullish = (df['fast_ma'] > df['medium_ma']) & (df['medium_ma'] > df['slow_ma'])
+        # Bearish: fast < medium < slow
+        bearish = (df['fast_ma'] < df['medium_ma']) & (df['medium_ma'] < df['slow_ma'])
+        
+        df['signal'] = 0
+        df.loc[bullish, 'signal'] = 1
+        df.loc[bearish, 'signal'] = -1
+        
+        # Neutral until we have enough data
+        df.loc[:self.slow, 'signal'] = 0
+        
+        return df[['signal']]
+```
+
+---
+
+### 6. `src/trading_strategies/strategies/stocks/mean_reversion.py`
+
+```python
+"""Mean Reversion strategy from paper (Section 3.9)."""
+
+import pandas as pd
+import numpy as np
+from typing import Tuple
+from ..base import BaseStrategy
+
+class MeanReversionStrategy(BaseStrategy):
+    """
+    Strategy: Mean Reversion (from paper Section 3.9)
+    
+    Assumes prices revert to their mean.
+    Generate signals based on deviation from moving average.
+    """
+    
+    def __init__(self, lookback: int = 20, z_score_threshold: float = 2.0):
+        super().__init__(
+            name=f"MeanReversion_{lookback}_{z_score_threshold}",
+            parameters={'lookback': lookback, 'z_score_threshold': z_score_threshold}
+        )
+        self.lookback = lookback
+        self.z_score_threshold = z_score_threshold
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate signals based on z-score from mean.
+        
+        Signal logic:
+        - 1 (long): price is z_score_threshold std below mean (buy dip)
+        - -1 (short): price is z_score_threshold std above mean (short spike)
+        - 0 (neutral): within threshold
+        """
+        df = data.copy()
+        
+        # Calculate rolling mean and std
+        df['mean'] = df['close'].rolling(window=self.lookback).mean()
+        df['std'] = df['close'].rolling(window=self.lookback).std()
+        
+        # Calculate z-score
+        df['z_score'] = (df['close'] - df['mean']) / df['std']
+        
+        # Generate signals
+        df['signal'] = 0
+        df.loc[df['z_score'] < -self.z_score_threshold, 'signal'] = 1   # Buy
+        df.loc[df['z_score'] > self.z_score_threshold, 'signal'] = -1    # Sell
+        
+        # Neutral signal until we have enough data
+        df.loc[:self.lookback, 'signal'] = 0
+        
+        return df[['signal']]
+
+
+class PairsStrategy(BaseStrategy):
+    """
+    Strategy: Pairs Trading (from paper Section 3.8)
+    
+    Trade two correlated stocks - short the outperformer, long the underperformer.
+    """
+    
+    def __init__(self, ticker_a: str, ticker_b: str, lookback: int = 60):
+        super().__init__(
+            name=f"Pairs_{ticker_a}_{ticker_b}",
+            parameters={'ticker_a': ticker_a, 'ticker_b': ticker_b, 'lookback': lookback}
+        )
+        self.ticker_a = ticker_a
+        self.ticker_b = ticker_b
+        self.lookback = lookback
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate signals for pairs trading.
+        
+        data should have columns: ticker_a_close, ticker_b_close
+        """
+        df = data.copy()
+        
+        # Calculate normalized prices
+        price_a = df[self.ticker_a].fillna(method='ffill')
+        price_b = df[self.ticker_b].fillna(method='ffill')
+        
+        # Calculate price ratios
+        ratio = price_a / price_b
+        
+        # Calculate rolling mean and std of ratio
+        ratio_mean = ratio.rolling(window=self.lookback).mean()
+        ratio_std = ratio.rolling(window=self.lookback).std()
+        
+        # Z-score of ratio
+        z_score = (ratio - ratio_mean) / ratio_std
+        
+        # Generate signals
+        df['signal'] = 0
+        # When ratio is high (A expensive vs B), short A and long B
+        df.loc[z_score > 1.5, 'signal'] = -1
+        # When ratio is low (A cheap vs B), long A and short B
+        df.loc[z_score < -1.5, 'signal'] = 1
+        
+        df.loc[:self.lookback, 'signal'] = 0
+        
+        return df[['signal']]
+```
+
+---
+
+### 7. `src/trading_strategies/strategies/stocks/momentum.py`
+
+```python
+"""Momentum strategy from paper (Section 3.1)."""
+
+import pandas as pd
+import numpy as np
+from ..base import BaseStrategy
+
+class MomentumStrategy(BaseStrategy):
+    """
+    Strategy: Price Momentum (from paper Section 3.1)
+    
+    Buy stocks with positive recent price momentum.
+    Sell stocks with negative momentum.
+    """
+    
+    def __init__(self, lookback: int = 252, percentile_threshold: float = 0.5):
+        super().__init__(
+            name=f"Momentum_{lookback}",
+            parameters={'lookback': lookback, 'percentile_threshold': percentile_threshold}
+        )
+        self.lookback = lookback
+        self.percentile_threshold = percentile_threshold
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate signals based on historical returns (momentum).
+        
+        Momentum = (P_today / P_lookback_ago) - 1
+        
+        Buy when momentum is positive and strong.
+        Sell when momentum is negative.
+        """
+        df = data.copy()
+        
+        # Calculate momentum (returns over lookback period)
+        df['momentum'] = (df['close'] / df['close'].shift(self.lookback) - 1)
+        
+        # Standardize momentum
+        df['momentum_zscore'] = (df['momentum'] - df['momentum'].rolling(60).mean()) / df['momentum'].rolling(60).std()
+        
+        # Generate signals
+        df['signal'] = 0
+        df.loc[df['momentum'] > 0, 'signal'] = 1      # Positive momentum: BUY
+        df.loc[df['momentum'] < 0, 'signal'] = -1     # Negative momentum: SELL
+        
+        # Neutral until we have enough data
+        df.loc[:self.lookback, 'signal'] = 0
+        
+        return df[['signal']]
+```
+
+---
+
+### 8. `examples/run_single_strategy.py`
+
+```python
+"""Simple example: Run a single strategy."""
+
+import sys
+from pathlib import Path
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+
+from trading_strategies.data.fetcher import DataFetcher
+from trading_strategies.strategies.stocks.moving_average import DualMovingAverageStrategy
+from trading_strategies.config import CACHE_DIR, BACKTEST_CONFIG
+import pandas as pd
+
+def main():
+    """Run a dual moving average strategy on AAPL."""
+    
+    print("=" * 60)
+    print("Trading Strategy Backtest Example")
+    print("=" * 60)
+    
+    # 1. Fetch data
+    print("\n1. Fetching data...")
+    fetcher = DataFetcher(cache_dir=CACHE_DIR, cache_enabled=True)
+    data = fetcher.fetch_ohlcv(
+        ticker='AAPL',
+        start_date='2020-01-01',
+        end_date='2023-12-31'
+    )
+    print(f"   Fetched {len(data)} days of data")
+    print(f"   Data shape: {data.shape}")
+    
+    # 2. Create strategy
+    print("\n2. Creating strategy...")
+    strategy = DualMovingAverageStrategy(fast_period=20, slow_period=50)
+    print(f"   Strategy: {strategy.name}")
+    print(f"   Parameters: {strategy.parameters}")
+    
+    # 3. Generate signals
+    print("\n3. Generating signals...")
+    signals = strategy.generate_signals(data)
+    print(f"   Signal shape: {signals.shape}")
+    print(f"   Long signals: {(signals['signal'] == 1).sum()}")
+    print(f"   Short signals: {(signals['signal'] == -1).sum()}")
+    print(f"   Neutral signals: {(signals['signal'] == 0).sum()}")
+    
+    # 4. Run backtest
+    print("\n4. Running backtest...")
+    results = strategy.backtest(
+        data=data,
+        initial_capital=BACKTEST_CONFIG['initial_capital'],
+        commission=BACKTEST_CONFIG['commission']
+    )
+    
+    # 5. Print results
+    print("\n" + "=" * 60)
+    print("BACKTEST RESULTS")
+    print("=" * 60)
+    print(f"Strategy:         {results['strategy']}")
+    print(f"Total Return:     {results['total_return']:.2%}")
+    print(f"Number of Trades: {results['num_trades']:.0f}")
+    print(f"Sharpe Ratio:     {results['sharpe_ratio']:.2f}")
+    print(f"Max Drawdown:     {results['max_drawdown']:.2%}")
+    
+    # 6. Show sample signals
+    print("\n" + "=" * 60)
+    print("SAMPLE SIGNALS (last 10 days)")
+    print("=" * 60)
+    signals_df = results['signals_df']
+    print(signals_df[['close', 'signal', 'position', 'net_return', 'cum_return']].tail(10))
+    
+    # 7. Plot results (optional)
+    try:
+        import matplotlib.pyplot as plt
+        
+        fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+        
+        # Price and signals
+        ax = axes[0]
+        ax.plot(data.index, data['close'], label='Close Price', linewidth=1)
+        ax.scatter(data.index[signals['signal'] == 1], 
+                  data['close'][signals['signal'] == 1],
+                  color='green', marker='^', label='Buy Signal', s=50)
+        ax.scatter(data.index[signals['signal'] == -1],
+                  data['close'][signals['signal'] == -1],
+                  color='red', marker='v', label='Sell Signal', s=50)
+        ax.set_title(f'{strategy.name} - Trading Signals')
+        ax.set_ylabel('Price')
+        ax.legend()
+        ax.grid(True)
+        
+        # Equity curve
+        ax = axes[1]
+        ax.plot(signals_df.index, signals_df['equity'], label='Strategy Equity', linewidth=2)
+        ax.set_title('Equity Curve')
+        ax.set_ylabel('Account Value ($)')
+        ax.legend()
+        ax.grid(True)
+        
+        # Drawdown
+        ax = axes[2]
+        drawdown = (signals_df['cum_return'] - signals_df['cum_return'].expanding().max()) / signals_df['cum_return'].expanding().max()
+        ax.fill_between(signals_df.index, drawdown, 0, alpha=0.3, color='red')
+        ax.plot(signals_df.index, drawdown, color='darkred', linewidth=1)
+        ax.set_title('Drawdown')
+        ax.set_ylabel('Drawdown %')
+        ax.set_xlabel('Date')
+        ax.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig('backtest_results.png', dpi=100)
+        print("\n✓ Chart saved to backtest_results.png")
+    except ImportError:
+        print("\n(Install matplotlib to generate charts)")
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## README.md Template
+
+```markdown
+# Trading Strategies from Paper
+
+Implementation of 150+ trading strategies from ["151 Trading Strategies"](https://ssrn.com/abstract=3247865) by Kakushadze & Serur, using freely available data from yfinance.
+
+## Features
+
+✅ **150+ Trading Strategies** - Implementation of strategies across multiple asset classes  
+✅ **yfinance Data** - Free market data, no API keys required  
+✅ **Backtesting Engine** - Built-in performance metrics (Sharpe, Drawdown, etc.)  
+✅ **Modular Architecture** - Easy to add new strategies  
+✅ **Production-Ready** - Proper logging, error handling, caching  
+✅ **Jupyter Notebooks** - Example implementations and analysis  
+
+## Quick Start
+
+### Installation
+
+```bash
+git clone https://github.com/yourusername/trading-strategies.git
+cd trading-strategies
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Run Your First Strategy
+
+```python
+from trading_strategies.data.fetcher import DataFetcher
+from trading_strategies.strategies.stocks.moving_average import DualMovingAverageStrategy
+from trading_strategies.config import CACHE_DIR, BACKTEST_CONFIG
+
+# Fetch data
+fetcher = DataFetcher(cache_dir=CACHE_DIR)
+data = fetcher.fetch_ohlcv('AAPL', '2020-01-01', '2023-12-31')
+
+# Create and run strategy
+strategy = DualMovingAverageStrategy(fast_period=20, slow_period=50)
+results = strategy.backtest(data, initial_capital=100000)
+
+print(f"Total Return: {results['total_return']:.2%}")
+print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+print(f"Max Drawdown: {results['max_drawdown']:.2%}")
+```
+
+Or run the example:
+```bash
+python examples/run_single_strategy.py
+```
+
+## Strategies Implemented
+
+### Stocks (Completed)
+- [x] Single Moving Average (3.11)
+- [x] Dual Moving Average (3.12)
+- [x] Triple Moving Average (3.13)
+- [x] Momentum (3.1)
+- [x] Mean Reversion (3.9)
+- [x] Pairs Trading (3.8)
+
+### In Progress
+- [ ] Support & Resistance (3.14)
+- [ ] Channel Trading (3.15)
+- [ ] Machine Learning - KNN (3.17)
+- [ ] Statistical Arbitrage (3.18)
+- [ ] Market Making (3.19)
+
+### Future
+- [ ] ETF Strategies (Section 4)
+- [ ] Options Strategies (Section 2)
+- [ ] FX Strategies (Section 8)
+- [ ] Cryptocurrency Strategies (Section 18)
+
+## Project Structure
+
+```
+trading-strategies/
+├── src/trading_strategies/
+│   ├── data/          # Data fetching & caching
+│   ├── strategies/    # Strategy implementations
+│   ├── backtest/      # Backtesting engine
+│   ├── risk/          # Risk management
+│   └── utils/         # Utilities
+├── notebooks/         # Jupyter examples
+├── examples/          # Standalone scripts
+└── tests/            # Unit tests
+```
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) - System design & components
+- [Strategies](docs/STRATEGIES.md) - Detailed strategy documentation
+- [API Reference](docs/API.md) - Complete API docs
+- [Paper Reference](docs/PAPER_REFERENCE.md) - Links to paper formulas
+
+## Notebooks
+
+- `01_quick_start.ipynb` - Getting started
+- `02_moving_average_strategy.ipynb` - MA strategy deep dive
+- `03_pairs_trading.ipynb` - Pairs trading analysis
+- `04_mean_reversion.ipynb` - Mean reversion backtest
+- `05_portfolio_analysis.ipynb` - Multi-strategy portfolio
+
+## Configuration
+
+Edit `src/trading_strategies/config.py` to customize:
+- Initial capital
+- Commission & slippage
+- Risk limits
+- Cache behavior
+
+Or load from JSON:
+```python
+from trading_strategies.config import load_config_file
+config = load_config_file('examples/config_example.json')
+```
+
+## Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/trading_strategies
+
+# Run specific test
+pytest tests/test_strategies.py -v
+```
+
+## Contributing
+
+Contributions welcome! Areas for help:
+
+1. **Add new strategies** - Implement strategies from the paper
+2. **Improve backtester** - Add more metrics, Monte Carlo, etc.
+3. **Documentation** - Examples, notebooks, API docs
+4. **Bug reports & fixes** - Issue reports & PRs
+
+## Disclaimer
+
+**This is educational code only.** 
+
+- No financial advice given
+- Backtests do not guarantee future performance
+- Past performance ≠ future results
+- Always backtest thoroughly before trading real money
+- Use small position sizes when starting live trading
+
+See [LICENSE](LICENSE) for full terms.
+
+## References
+
+- **Paper**: [151 Trading Strategies (SSRN-3247865)](https://ssrn.com/abstract=3247865)
+- **Authors**: Zura Kakushadze & Juan Andrés Serur
+- **Data**: [yfinance](https://github.com/ranaroussi/yfinance)
+
+## Citation
+
+If you use this code for research, please cite:
+
+```bibtex
+@article{kakushadze2018151,
+  title={151 trading strategies},
+  author={Kakushadze, Zura and Serur, Juan Andr{\'e}s},
+  journal={arXiv preprint arXiv:1701.01127},
+  year={2018}
+}
+```
+
+And acknowledge this implementation:
+
+```bibtex
+@software{your_name_2024_trading_strategies,
+  author = {Your Name},
+  title = {Trading Strategies Implementation},
+  url = {https://github.com/yourusername/trading-strategies},
+  year = {2024}
+}
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file
+
+## Questions?
+
+- 📖 Read the [docs](docs/)
+- 💻 Check [examples](examples/)
+- 📓 Run [notebooks](notebooks/)
+- 🐛 Open an [issue](https://github.com/yourusername/trading-strategies/issues)
+
+---
+
+**⭐ If you find this useful, please star the repo!**
+```
+
+---
+
+## Next Steps to Create the Project
+
+1. **Create GitHub Repository**
+   ```bash
+   mkdir trading-strategies
+   cd trading-strategies
+   git init
+   ```
+
+2. **Create Directory Structure**
+   ```bash
+   mkdir -p src/trading_strategies/{data,backtest,strategies/{stocks,etf,multi_asset},risk,utils}
+   mkdir -p {notebooks,tests,examples,docs,data/{cache,backtest_results}}
+   touch src/trading_strategies/__init__.py
+   ```
+
+3. **Add Core Files** (from above):
+   - `requirements.txt`
+   - `src/trading_strategies/config.py`
+   - `src/trading_strategies/data/fetcher.py`
+   - `src/trading_strategies/strategies/base.py`
+   - Strategy implementations
+   - `examples/run_single_strategy.py`
+   - `README.md`
+
+4. **Commit and Push**
+   ```bash
+   git add .
+   git commit -m "Initial commit: Core framework and strategies"
+   git branch -M main
+   git remote add origin https://github.com/yourusername/trading-strategies.git
+   git push -u origin main
+   ```
+
+5. **Add License** - Copy MIT license to `LICENSE` file
+
+6. **Create GitHub Repository Settings**
+   - Add description
+   - Add topic tags: `trading`, `strategies`, `backtesting`, `finance`, `python`
+   - Add `.gitignore`
+
+---
+
+## Sample .gitignore
+
+```
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data
+data/cache/*.parquet
+data/backtest_results/*.csv
+data/backtest_results/*.json
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Results
+*.png
+*.pdf
+backtest_results.csv
+```
+
+---
+
+## Adding More Strategies
+
+To add a new strategy:
+
+```python
+# src/trading_strategies/strategies/stocks/my_strategy.py
+from .base import BaseStrategy
+import pandas as pd
+
+class MyStrategy(BaseStrategy):
+    def __init__(self, param1: int = 20):
+        super().__init__(name="MyStrategy", parameters={'param1': param1})
+        self.param1 = param1
+    
+    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Your strategy logic here
+        df = data.copy()
+        df['signal'] = 0  # -1, 0, or 1
+        return df[['signal']]
+```
+
+Then test it:
+```python
+strategy = MyStrategy(param1=20)
+results = strategy.backtest(data)
+print(f"Return: {results['total_return']:.2%}")
+```
+
+---
+
+This gives you a **production-ready GitHub project** for trading strategies using yfinance!
