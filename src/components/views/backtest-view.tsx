@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -377,19 +377,33 @@ export function BacktestView() {
                 </Card>
               </div>
 
-              {/* Return density (KDE) chart */}
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                      <Icons.Waves className="h-3.5 w-3.5 text-cyan-400" /> Return Density (KDE)
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground">Smoothed kernel density estimate vs normal distribution — reveals fat tails / skew</p>
+              {/* Return density (KDE) + Q-Q plot */}
+              <div className="grid lg:grid-cols-2 gap-4">
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.Waves className="h-3.5 w-3.5 text-cyan-400" /> Return Density (KDE)
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Smoothed density vs normal — reveals fat tails / skew</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono">KDE vs Normal</Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono">KDE vs Normal</Badge>
-                </div>
-                <ReturnDensityChart equity={result.equity} />
-              </Card>
+                  <ReturnDensityChart equity={result.equity} />
+                </Card>
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Icons.GitCompare className="h-3.5 w-3.5 text-violet-400" /> Q-Q Plot
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground">Sample quantiles vs normal — deviations from the line = non-normality</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono">Quantile-Quantile</Badge>
+                  </div>
+                  <QQPlotChart equity={result.equity} />
+                </Card>
+              </div>
 
               {/* ACF + pACF (autocorrelation) charts */}
               <div className="grid lg:grid-cols-2 gap-4">
@@ -1041,4 +1055,116 @@ function ReturnDensityChart({ equity }: { equity: BacktestResult["equity"] }) {
       </div>
     </div>
   );
+}
+
+// Q-Q plot — sample quantiles vs theoretical normal quantiles
+function QQPlotChart({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    if (equity.length < 30) return { points: [], line: [], stats: null };
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push(equity[i].equity / equity[i - 1].equity - 1);
+    }
+    const sorted = [...returns].sort((a, b) => a - b);
+    const n = sorted.length;
+    const mean = sorted.reduce((a, b) => a + b, 0) / n;
+    const variance = sorted.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance);
+    if (std === 0) return { points: [], line: [], stats: null };
+    const points: { sample: number; theoretical: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const p = (i + 0.375) / (n + 0.25); // Blom plotting position
+      const z = invNorm(p);
+      const theoretical = mean + z * std;
+      points.push({ sample: sorted[i], theoretical });
+    }
+    const minT = Math.min(...points.map((p) => p.theoretical));
+    const maxT = Math.max(...points.map((p) => p.theoretical));
+    const line = [{ x: minT, y: minT }, { x: maxT, y: maxT }];
+    const ssRes = points.reduce((a, p) => a + (p.sample - p.theoretical) ** 2, 0);
+    const ssTot = points.reduce((a, p) => a + (p.sample - mean) ** 2, 0);
+    const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+    return { points, line, stats: { r2, n, mean, std } };
+  }, [equity]);
+
+  if (!data.stats) return <div className="text-xs text-muted-foreground">Insufficient data for Q-Q plot</div>;
+
+  return (
+    <div className="space-y-2">
+      <ChartContainer config={{ sample: { label: "Sample", color: "var(--chart-5)" } }} className="aspect-[2/1] w-full">
+        <ScatterChart margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis
+            type="number"
+            dataKey="theoretical"
+            name="Theoretical"
+            tick={{ fontSize: 9 }}
+            tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+            stroke="var(--muted-foreground)"
+            domain={["dataMin", "dataMax"]}
+          />
+          <YAxis
+            type="number"
+            dataKey="sample"
+            name="Sample"
+            tick={{ fontSize: 9 }}
+            tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+            stroke="var(--muted-foreground)"
+            width={40}
+            domain={["dataMin", "dataMax"]}
+          />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(_v: any, _n: any, item: any) => {
+              const p = item?.payload;
+              return [`S: ${(p.sample * 100).toFixed(2)}% / T: ${(p.theoretical * 100).toFixed(2)}%`, "Q-Q"];
+            }}
+            labelFormatter={() => ""}
+          />
+          <ReferenceLine segment={[{ x: data.line[0].x, y: data.line[0].y }, { x: data.line[1].x, y: data.line[1].y }]} stroke="var(--muted-foreground)" strokeDasharray="4 4" strokeWidth={1.5} />
+          <Scatter data={data.points} fill="var(--chart-5)" fillOpacity={0.5} />
+        </ScatterChart>
+      </ChartContainer>
+      <div className="grid grid-cols-3 gap-2 pt-1">
+        <Stat label="R² (fit)" value={data.stats.r2.toFixed(4)} tone={data.stats.r2 > 0.99 ? "bull" : data.stats.r2 > 0.95 ? "neutral" : "bear"} />
+        <Stat label="Mean" value={`${(data.stats.mean * 100).toFixed(3)}%`} tone="neutral" />
+        <Stat label="Std Dev" value={`${(data.stats.std * 100).toFixed(3)}%`} tone="neutral" />
+      </div>
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1">
+        <span>Dots = sample quantiles; dashed line = perfect normality</span>
+        <span className="font-mono">R² &lt; 0.99 ⇒ fat tails</span>
+      </div>
+    </div>
+  );
+}
+
+// Inverse standard normal CDF (Acklam's algorithm)
+function invNorm(p: number): number {
+  if (p <= 0) return -10;
+  if (p >= 1) return 10;
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518433692e+02, -3.088029484943022e+01, 2.031306112349035e+00, -1.092012202876943e-01];
+  const b = [-5.429710676643643e+01, 1.534995903543465e+02, -1.570723666696968e+02, 8.728031410810945e+01, -2.418425429515566e+01, 2.809399861851246e+00, -6.312890362337526e-02];
+  const c = [-7.784894002430293e-03, -3.223964535419532e-01, -2.400758277057789e+00, -2.549732539343734e+00, 4.894713067914294e+00, 1.465821245360988e+00];
+  const d = [-3.093423321769098e-01, -3.875024679788584e-01, 2.074902513499347e+00, -1.161977390589401e+00, -3.491795964920130e-01, 1.435433428324864e-02];
+  const plow = 0.02425;
+  const phigh = 1 - plow;
+  // Horner-form polynomial evaluation: poly(coeffs, x) = c0 + c1*x + ... 
+  const poly = (coeffs: number[], x: number) => {
+    let r = 0;
+    for (let i = coeffs.length - 1; i >= 0; i--) r = r * x + coeffs[i];
+    return r;
+  };
+  let q: number, x: number;
+  if (p < plow) {
+    q = Math.sqrt(-2 * Math.log(p));
+    x = poly(c, q) / poly(d, q);
+  } else if (p <= phigh) {
+    q = p - 0.5;
+    const r = q * q;
+    x = poly(a, r) * q / poly(b, r);
+  } else {
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    x = -poly(c, q) / poly(d, q);
+  }
+  return x;
 }

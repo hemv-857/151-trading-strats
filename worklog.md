@@ -479,3 +479,50 @@ Unresolved issues / risks:
 - The glossary has 425 of the paper's 900+ — could keep expanding toward 500+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive draggable payoff diagram (user drags the spot line); (d) add more glossary terms (toward 500+); (e) add a QQ-plot alongside the KDE chart; (f) add a correlation matrix heatmap for the compare-backtests view.
+
+---
+Task ID: 11 (cron review round 10)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–10; confirmed app had 151 strategies, 10 backtest strategies, 425 glossary terms, 8 views, KDE chart, IV what-if, rolling Sharpe, vol smile, Greeks vs Spot, underwater chart, Compare Backtests, pACF, options export, related strategies graph, ACF, share permalinks.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added Q-Q plot alongside the KDE chart in the Backtest Lab:
+  - Built `QQPlotChart` component that computes sample quantiles (sorted daily returns) vs theoretical normal quantiles (via the Blom plotting position and an inverse-normal-CDF implementation using Acklam's algorithm). Plots as a ScatterChart with a y=x reference line.
+  - Includes an R² (fit) stat colored bull/neutral/bear — R² < 0.99 indicates fat tails. Also shows mean and std dev.
+  - Restructured the KDE chart into a 2-column grid: KDE on the left, Q-Q plot on the right.
+  - Added `Scatter` and `ScatterChart` to the recharts imports.
+- Phase 2 — Added correlation matrix heatmap to the Compare Backtests view:
+  - Built `CorrelationHeatmap` component that computes the full Pearson correlation matrix of daily returns across all compared strategies. Renders as an N×N color-coded grid (emerald for positive, rose for negative, intensity-scaled by |correlation|).
+  - Includes a color legend (-1 to +1) and a "Low correlation = diversification benefit" hint. Cells scale 110% on hover with tooltips showing the exact correlation.
+  - Only renders when 2+ strategies are compared.
+- Phase 3 — Expanded glossary 425 → 475 terms:
+  - Added 50 new terms across 7 categories: 10 risk/time-series terms (cointegration test, Dickey-Fuller, Hurst exponent, Ornstein-Uhlenbeck, half-life, Granger causality, rank IC, hit rate, Kalman filter, EWMA); 8 options terms (delta-hedging frequency, gamma/theta/vega P&L, pinned-at-strike, IV crush, vol surface arbitrage, local vol surface); 8 fixed-income/structured terms (ABS, MBS, CDO, tranche, waterfall, default correlation, prepayment risk, extension risk); 8 stocks terms (earnings whisper, guidance, same-store sales, whisper number, IPO lockup, short interest ratio, float, market cap); 8 macro terms (QT, forward guidance, dot plot, Beige Book, NFP, CPI, PCE, FOMC); 8 trading terms (rebate, access fee, maker-taker, tick size, block trade, dark pool/ATS, RFQ, cross).
+  - Updated dashboard stat: "Glossary Terms: 475".
+  - Updated about view glossary feature card description.
+- Phase 4 — Styling polish:
+  - Q-Q plot: scatter dots with 50% opacity, dashed y=x reference line, R² colored by fit quality.
+  - Correlation heatmap: color legend, hover-scale cells, truncated strategy-name labels.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 475 (up from 425).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "475", "Compare Backtests" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (Bollinger Bands, 750 bars) → 750 equity points (sufficient for Q-Q plot), Sharpe 0.44.
+  - `POST /api/backtest-compare` (Single MA + Two MA, 500 bars) → 2 results, both with 500 equity points — correlation matrix input confirmed.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New Q-Q plot in the Backtest Lab — sample quantiles vs normal quantiles with an inverse-normal-CDF implementation (Acklam's algorithm via Horner-form polynomials). R² fit stat reveals fat tails.
+- New correlation matrix heatmap in the Compare Backtests view — pairwise Pearson correlation of daily returns, color-coded (emerald/rose), with diversification-benefit context.
+- Glossary expanded 425 → 475 terms across 7 categories (50 new terms covering time-series statistics, options P&L decomposition, structured products, equity events, central-bank communications, and market microstructure).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 475 of the paper's 900+ — could keep expanding toward 550+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive draggable payoff diagram (user drags the spot line); (d) add more glossary terms (toward 550+); (e) add a Hurst exponent calculator to the backtest view; (f) add an efficient-frontier visualization for the compare-backtests view (risk vs return scatter).

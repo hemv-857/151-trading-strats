@@ -254,6 +254,17 @@ export function BacktestCompareView() {
                   </table>
                 </div>
               </Card>
+
+              {/* Correlation matrix heatmap */}
+              {results.length >= 2 && (
+                <Card className="p-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                    <Icons.Grid3x3 className="h-3.5 w-3.5 text-primary" /> Return Correlation Matrix
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mb-3">Pairwise correlation of daily strategy returns — lower = better diversification</p>
+                  <CorrelationHeatmap results={results} />
+                </Card>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -312,6 +323,103 @@ function SlotEditor({ slot, index, onUpdate, onRemove }: { slot: StrategySlot; i
             className="w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] font-mono tnum"
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Correlation matrix heatmap — pairwise correlation of strategy returns
+function CorrelationHeatmap({ results }: { results: CompareResult[] }) {
+  const matrix = React.useMemo(() => {
+    const n = results.length;
+    if (n < 2) return [];
+    const allReturns: number[][] = results.map((r) => {
+      const rets: number[] = [];
+      for (let i = 1; i < r.equity.length; i++) {
+        rets.push(r.equity[i].equity / r.equity[i - 1].equity - 1);
+      }
+      return rets;
+    });
+    const minLen = Math.min(...allReturns.map((r) => r.length));
+    const corr: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const row: number[] = [];
+      const ri = allReturns[i].slice(0, minLen);
+      const meanI = ri.reduce((a, b) => a + b, 0) / minLen;
+      const stdI = Math.sqrt(ri.reduce((a, b) => a + (b - meanI) ** 2, 0) / minLen);
+      for (let j = 0; j < n; j++) {
+        if (i === j) { row.push(1); continue; }
+        const rj = allReturns[j].slice(0, minLen);
+        const meanJ = rj.reduce((a, b) => a + b, 0) / minLen;
+        const stdJ = Math.sqrt(rj.reduce((a, b) => a + (b - meanJ) ** 2, 0) / minLen);
+        let cov = 0;
+        for (let k = 0; k < minLen; k++) cov += (ri[k] - meanI) * (rj[k] - meanJ);
+        cov /= minLen;
+        row.push(stdI > 0 && stdJ > 0 ? cov / (stdI * stdJ) : 0);
+      }
+      corr.push(row);
+    }
+    return corr;
+  }, [results]);
+
+  if (matrix.length < 2) return <div className="text-xs text-muted-foreground">Need 2+ strategies to compute correlations</div>;
+
+  function colorFor(corr: number): string {
+    const abs = Math.abs(corr);
+    const alpha = 0.15 + abs * 0.7;
+    if (corr >= 0) return `oklch(0.72 0.17 155 / ${alpha.toFixed(2)})`;
+    return `oklch(0.65 0.22 25 / ${alpha.toFixed(2)})`;
+  }
+
+  const labels = results.map((r) => r.strategyName);
+
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto scrollbar-terminal">
+        <table className="w-full text-[10px] font-mono tnum border-collapse">
+          <thead>
+            <tr>
+              <th className="text-left px-2 py-1 text-muted-foreground font-semibold w-32"></th>
+              {labels.map((l, i) => (
+                <th key={i} className="px-1 py-1 text-muted-foreground font-semibold text-center max-w-[80px]">
+                  <div className="truncate" title={l}>{l.length > 12 ? l.slice(0, 11) + "…" : l}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.map((row, i) => (
+              <tr key={i}>
+                <td className="px-2 py-1 text-muted-foreground font-semibold text-right max-w-[120px]">
+                  <div className="truncate" title={labels[i]}>{labels[i].length > 12 ? labels[i].slice(0, 11) + "…" : labels[i]}</div>
+                </td>
+                {row.map((c, j) => (
+                  <td key={j} className="p-0.5 text-center">
+                    <div
+                      className="h-9 rounded-sm flex items-center justify-center text-[10px] font-bold transition-transform hover:scale-110 cursor-default"
+                      style={{ backgroundColor: colorFor(c) }}
+                      title={`${labels[i]} × ${labels[j]}: ${c.toFixed(4)}`}
+                    >
+                      {c.toFixed(2)}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1">
+        <div className="flex items-center gap-1.5">
+          <span>-1</span>
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.65 0.22 25 / 0.85)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.65 0.22 25 / 0.4)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "var(--muted)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.72 0.17 155 / 0.4)" }} />
+          <div className="h-3 w-8 rounded-sm" style={{ backgroundColor: "oklch(0.72 0.17 155 / 0.85)" }} />
+          <span>+1</span>
+        </div>
+        <span>Low correlation = diversification benefit</span>
       </div>
     </div>
   );
