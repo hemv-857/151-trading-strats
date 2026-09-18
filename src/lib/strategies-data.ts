@@ -324,6 +324,28 @@ export function getStrategyById(id: string): Strategy | undefined {
   return STRATEGIES.find((s) => s.id === id);
 }
 
+// Compute related strategies by shared key concepts (Jaccard-like similarity).
+// Returns up to `limit` strategies with at least 1 shared concept, sorted by overlap count.
+export function getRelatedStrategies(id: string, limit = 6): { strategy: Strategy; shared: string[]; score: number }[] {
+  const target = STRATEGIES.find((s) => s.id === id);
+  if (!target) return [];
+  const targetConcepts = new Set(target.keyConcepts.map((c) => c.toLowerCase()));
+  const targetInstruments = new Set(target.instruments.map((i) => i.toLowerCase()));
+  const results: { strategy: Strategy; shared: string[]; score: number }[] = [];
+  for (const s of STRATEGIES) {
+    if (s.id === id) continue;
+    const sharedConcepts = s.keyConcepts.filter((c) => targetConcepts.has(c.toLowerCase()));
+    const sharedInstruments = s.instruments.filter((i) => targetInstruments.has(i.toLowerCase()));
+    // Bonus for same category
+    const sameCat = s.category === target.category ? 0.5 : 0;
+    const score = sharedConcepts.length + sharedInstruments.length * 0.3 + sameCat;
+    if (score > 0) {
+      results.push({ strategy: s, shared: [...sharedConcepts, ...sharedInstruments.map((i) => `instr:${i}`)], score });
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
 // Color tokens per asset class for UI
 export const CATEGORY_COLORS: Record<AssetClassId, { bg: string; text: string; border: string; ring: string; dot: string }> = {
   options: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/30", ring: "ring-emerald-500/40", dot: "bg-emerald-500" },

@@ -244,3 +244,50 @@ Unresolved issues / risks:
 - The glossary has 181 of the paper's 900+ — could keep expanding toward 250+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add more glossary terms (toward 250+); (b) add a "compare backtests" feature (run 2 strategies side-by-side in the backtest view); (c) add an ACF/autocorrelation chart for return analysis; (d) add a deep-link / share-permalink feature (URL hash for strategies + backtest configs); (e) add a "trending strategies" section based on most-viewed across sessions; (f) add a strategy-relationship graph (which strategies relate to which, by shared concepts).
+
+---
+Task ID: 6 (cron review round 5)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–5; confirmed app had 151 strategies, 10 backtest strategies, 181 glossary terms, 7 views, CSV/JSON export, quick-regime presets, Strategy of the Day, monthly heatmap, return distribution, recently-viewed, keyboard shortcuts.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added a strategy-relationship graph (Related Strategies by shared concepts):
+  - Added `getRelatedStrategies(id, limit)` helper to `src/lib/strategies-data.ts` — computes a similarity score based on shared key concepts + shared instruments + a same-category bonus. Returns up to 6 related strategies sorted by score.
+  - Built `RelatedStrategiesSection` component in `src/components/strategy-detail-drawer.tsx` — renders a list of related strategies (icon, section #, name, top-3 shared concepts/instruments as badges, similarity score). Each is clickable, opening that strategy's detail drawer (enabling "browsing" through the strategy graph).
+  - Placed in the detail drawer before the Actions section.
+- Phase 2 — Added ACF (autocorrelation) chart to the Backtest Lab:
+  - Built `ACFChart` component that computes the autocorrelation function of daily returns for lags 1–30 (capped at n/4). Includes a 95% confidence interval (±1.96/√n) drawn as dashed reference lines.
+  - Renders as a bar chart where bars exceeding the CI are colored green (positive = momentum) or rose (negative = mean-reversion); bars within noise are muted. Includes a legend and the CI value.
+  - Placed as a full-width card between the return distribution and the trades table.
+- Phase 3 — Added deep-link/share permalink:
+  - Added URL hash sync to `src/components/strategy-detail-drawer.tsx`: when a strategy is opened, the URL hash updates to `#s=strategy-id` (via `replaceState`, no history pollution). When the drawer closes, the hash is cleared.
+  - On first mount, reads the hash and auto-opens the referenced strategy (so shared links deep-link directly to the strategy detail).
+  - Added a "Share" button to the Actions section — uses `navigator.share` if available (mobile native share sheet), otherwise copies the permalink to the clipboard with a toast confirmation.
+- Phase 4 — Expanded glossary 181 → 233 terms + styling polish:
+  - Added 52 new terms across 6 categories: 12 risk terms (alpha/beta-neutral, co-skewness, downside deviation, IC, marginal VaR, max DD duration, Omega, Sterling, Treynor, upside/downside capture); 10 options terms (ATMF, Black-76, cash/physical settlement, Margrabe exchange, forward start, quanto, rainbow, spread option, vol swap); 11 fixed-income terms (accrued coupon, callable/putable bond, convertibility, covenant, default recovery, high-yield/investment-grade, make-whole call, sinking fund, subordination); 10 stocks terms (active share, earnings yield, FCF yield, growth factor, low-vol factor, P/B, P/E, residual return, sector rotation, style drift); 9 macro terms (COT report, current account, hawkish/dovish, inverted yield curve, PMI, QE, real yield, terms of trade, YCC).
+  - Updated dashboard stat: "Glossary Terms: 233".
+  - Updated about view glossary feature card description.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 233 (up from 181).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "233".
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/backtest` (RSI mean-reversion, 500 bars) → 500 equity points (sufficient for ACF), Sharpe -0.39, maxDD 17.18%.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New "Related Strategies" section in the detail drawer — a relationship graph by shared key concepts/instruments, enabling browsing through the strategy space. Each related strategy shows its top-3 shared concepts and a similarity score.
+- New ACF (autocorrelation) chart in the Backtest Lab — a classic quant analytical tool showing whether returns exhibit momentum (positive lag-1 ACF) or mean-reversion (negative), with a 95% confidence band.
+- New deep-link/share permalink system — URL hash (`#s=strategy-id`) syncs with the open strategy, enabling shareable links. Native share sheet on mobile, clipboard copy on desktop. Shared links auto-open the strategy detail on load.
+- Glossary expanded 181 → 233 terms across 7 categories (52 new terms covering advanced risk metrics, exotic options, bond mechanics, factor investing, and macro/policy terms).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 233 of the paper's 900+ — could keep expanding toward 300+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a "compare backtests" feature (run 2 strategies side-by-side equity curves); (b) add a strategy-relationship network graph visualization (full graph view, not just per-strategy); (c) add a pACF (partial autocorrelation) chart alongside the ACF; (d) add more glossary terms (toward 300+); (e) add a "trending strategies" section based on most-viewed across sessions; (f) add an export for the options payoff diagram.

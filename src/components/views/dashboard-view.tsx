@@ -16,7 +16,7 @@ const STATS = [
   { label: "Trading Strategies", value: 151, suffix: "", icon: "Layers", color: "text-emerald-400" },
   { label: "Asset Classes", value: 19, suffix: "", icon: "Grid3x3", color: "text-amber-400" },
   { label: "Backtestable Models", value: 10, suffix: "", icon: "FlaskConical", color: "text-sky-400" },
-  { label: "Glossary Terms", value: 181, suffix: "", icon: "BookMarked", color: "text-violet-400" },
+  { label: "Glossary Terms", value: 233, suffix: "", icon: "BookMarked", color: "text-violet-400" },
 ];
 
 const HERO_CHART = [
