@@ -301,6 +301,9 @@ export function OptionsView() {
                 <GreekCard name="Theta" value={resp.greeks.theta.toFixed(2)} desc="Per day" tone={resp.greeks.theta < 0 ? "bear" : "bull"} />
               </div>
 
+              {/* Greeks vs Spot chart */}
+              <GreeksVsSpotChart preset={presetId} strategy={resp.strategy} spot={resp.spot} vol={resp.vol} T={resp.T} r={resp.r} mode={mode} customLegs={customLegs} />
+
               {/* Legs table */}
               <Card className="p-4">
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
@@ -602,4 +605,136 @@ function exportChartPNG(containerId: string, filename: string) {
   };
   img.onerror = () => { toast.error("Could not render chart to image"); URL.revokeObjectURL(url); };
   img.src = url;
+}
+
+// Greeks vs Spot chart — shows how each Greek changes across a range of spot prices
+function GreeksVsSpotChart({ preset, strategy, spot, vol, T, r, mode, customLegs }: {
+  preset: string;
+  strategy: any;
+  spot: number;
+  vol: number;
+  T: number;
+  r: number;
+  mode: "preset" | "custom";
+  customLegs: OptionLeg[];
+}) {
+  const [data, setData] = React.useState<{ spots: number[]; greeks: { delta: number[]; gamma: number[]; vega: number[]; theta: number[] } } | null>(null);
+  const [activeGreek, setActiveGreek] = React.useState<"delta" | "gamma" | "vega" | "theta">("delta");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const body =
+      mode === "preset"
+        ? { preset, spot, vol, T, r }
+        : { strategy: { id: "custom", name: "Custom", category: "options", marketView: "Custom", description: "test", legs: customLegs }, spot, vol, T, r };
+    fetch("/api/options-greeks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error("failed")))
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch(() => { /* ignore — chart just won't render */ });
+    return () => { cancelled = true; };
+  }, [preset, spot, vol, T, r, mode, customLegs]);
+
+  const chartData = React.useMemo(() => {
+    if (!data) return [];
+    return data.spots.map((s, i) => ({
+      spot: s,
+      delta: data.greeks.delta[i],
+      gamma: data.greeks.gamma[i],
+      vega: data.greeks.vega[i],
+      theta: data.greeks.theta[i],
+    }));
+  }, [data]);
+
+  const greekConfig = {
+    delta: { label: "Delta", color: "var(--chart-1)" },
+    gamma: { label: "Gamma", color: "var(--chart-4)" },
+    vega: { label: "Vega", color: "var(--chart-3)" },
+    theta: { label: "Theta", color: "var(--chart-5)" },
+  } as const;
+
+  const greekMeta = {
+    delta: { desc: "Directional exposure (slope of price vs spot)", unit: "" },
+    gamma: { desc: "Convexity (curvature — peaks ATM)", unit: "" },
+    vega: { desc: "Volatility sensitivity (per 1% vol)", unit: "" },
+    theta: { desc: "Time decay (per day)", unit: "" },
+  } as const;
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Icons.LineChart className="h-3.5 w-3.5 text-primary" /> Greeks vs Spot Price
+          </h3>
+          <p className="text-[11px] text-muted-foreground">{greekMeta[activeGreek].desc}</p>
+        </div>
+        <div className="flex rounded-md border border-border bg-card overflow-hidden text-[10px]">
+          {(["delta", "gamma", "vega", "theta"] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setActiveGreek(g)}
+              className={cn(
+                "px-2.5 py-1 transition-colors capitalize",
+                activeGreek === g ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                g !== "delta" && "border-l border-border"
+              )}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+      {chartData.length === 0 ? (
+        <Skeleton className="aspect-[2.5/1] w-full" />
+      ) : (
+        <ChartContainer config={{ [activeGreek]: greekConfig[activeGreek] } as any} className="aspect-[2.5/1] w-full">
+          <LineChart data={chartData} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="spot"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tick={{ fontSize: 9 }}
+              tickFormatter={(v) => `$${v.toFixed(0)}`}
+              stroke="var(--muted-foreground)"
+            />
+            <YAxis tick={{ fontSize: 9 }} stroke="var(--muted-foreground)" width={44} tickFormatter={(v) => v.toFixed(2)} />
+            <ChartTooltip
+              content={<ChartTooltipContent />}
+              formatter={(v: any) => [Number(v).toFixed(4), greekConfig[activeGreek].label]}
+              labelFormatter={(l: any) => `Spot: $${Number(l).toFixed(2)}`}
+            />
+            <ReferenceLine x={spot} stroke="var(--accent-gold)" strokeDasharray="4 4" label={{ value: "Spot", position: "top", fill: "var(--accent-gold)", fontSize: 10 }} />
+            <Line dataKey={activeGreek} type="monotone" stroke={greekConfig[activeGreek].color} strokeWidth={2} dot={false} />
+          </LineChart>
+        </ChartContainer>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-border">
+        {(["delta", "gamma", "vega", "theta"] as const).map((g) => {
+          const val = chartData.length > 0 ? chartData[Math.floor(chartData.length / 2)][g] : 0;
+          const isActive = activeGreek === g;
+          return (
+            <button
+              key={g}
+              onClick={() => setActiveGreek(g)}
+              className={cn(
+                "rounded-md border px-2 py-1.5 text-left transition-all",
+                isActive ? "border-primary/30 bg-primary/5" : "border-border bg-card hover:border-primary/20"
+              )}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-3 rounded-sm" style={{ backgroundColor: greekConfig[g].color }} />
+                <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{greekConfig[g].label}</span>
+              </div>
+              <div className="text-xs font-mono font-bold tnum mt-0.5">{val.toFixed(3)}</div>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
 }

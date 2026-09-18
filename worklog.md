@@ -340,3 +340,48 @@ Unresolved issues / risks:
 - The glossary has 274 of the paper's 900+ — could keep expanding toward 300+.
 - Real market data is not wired (synthetic GBM by design — educational).
 - Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add an interactive Greeks vs spot chart in the Options Lab; (d) add more glossary terms (toward 300+); (e) add a drawdown-duration chart (how long underwater); (f) add a strategy search in the glossary for "related terms".
+
+---
+Task ID: 8 (cron review round 7)
+Agent: Z.ai Code (cron webDevReview)
+Task: Assess project status, QA, then add features and styling polish per the mandatory requirements.
+
+Work Log:
+- Reviewed worklog.md from Tasks 1–7; confirmed app had 151 strategies, 10 backtest strategies, 274 glossary terms, 8 views, Compare Backtests, pACF, options export, related strategies graph, ACF, share permalinks.
+- Restarted the dev server (OOM-killed) and verified via curl + API endpoints.
+- Phase 1 — Added interactive Greeks vs Spot chart to the Options Lab:
+  - Created `POST /api/options-greeks` API route that sweeps the spot price from 0.6× to 1.4× the center and returns 41-point arrays for delta, gamma, vega, theta.
+  - Built `GreeksVsSpotChart` component with a tab selector (Delta/Gamma/Vega/Theta), a LineChart with a spot reference line, and a 4-button summary row showing each Greek's ATM value (clickable to switch the active chart). Each Greek has its own color. Works in both preset and custom-builder modes.
+  - Placed after the Greeks summary cards, before the legs table.
+- Phase 2 — Added drawdown-duration (underwater) chart to the Backtest Lab:
+  - Built `UnderwaterChart` component that tracks days since the last equity high — the classic "underwater" curve that shows how long the strategy stays in drawdown.
+  - Renders as a filled area chart (cyan) with a "Max: N days" badge in the header. Placed between the drawdown chart and the monthly heatmap.
+- Phase 3 — Expanded glossary 274 → 327 terms:
+  - Added 53 new terms across 7 categories: 10 risk/stats terms (ARCH, GARCH, Brownian motion, Itô's lemma, Monte Carlo, martingale, Markov, LLN, CLT, fat tails); 9 options terms (chooser, compound interest, delta-one, digital spread, exotic, knock-in/out, lock-out, Parisian, volatility surface); 8 fixed-income terms (asset swap, Bund, Gilts, JGB, OAT, stripped bond, TRS, yield beta); 10 stocks terms (anomaly, behavioral finance, disposition effect, earnings quality, factor mimicking portfolio, limit/market order, smart money, short interest, short squeeze); 8 macro terms (Bretton Woods, capital controls, deflation, disinflation, stagflation, safe haven, risk-on/off, output gap); 8 trading terms (alpha decay, capacity, drawdown recovery, overfitting, regime shift, stress test, survivorship bias, transaction costs).
+  - Updated dashboard stat: "Glossary Terms: 327".
+  - Updated about view glossary feature card description.
+- Phase 4 — Styling polish:
+  - Greeks vs Spot chart: tab selector with colored dots, clickable summary cards that switch the active Greek, spot reference line.
+  - Underwater chart: cyan gradient fill, "Max: N days" badge.
+- Verification (all passed):
+  - `bun run lint` passes clean (0 errors, 0 warnings).
+  - Strategy count: 151 (full count, matches paper's title).
+  - Glossary term count: 327 (up from 274).
+  - SSR renders: "151 Trading Strategies", "Strategy of the Day", "Glossary Terms", "327", "Compare Backtests" nav item.
+  - `GET /api/backtest` returns 10 strategies.
+  - `POST /api/options-greeks` (long-call preset) → 41 spots across $60-$140, 41 delta + 41 gamma points — Greeks sweep confirmed.
+  - `POST /api/backtest` (MACD crossover, 600 bars) → 600 equity points (sufficient for underwater chart), maxDD 18.95%.
+  - No console errors / runtime errors in dev log.
+- Environment note: agent-browser verification still blocked by 4 GB / no-swap Kata sandbox (Chrome + Turbopack OOM). All views verified via SSR + API.
+
+Stage Summary:
+- New interactive "Greeks vs Spot" chart in the Options Lab — sweep all 4 Greeks across a spot range with a tab selector and clickable ATM-value cards. New `/api/options-greeks` endpoint powers it.
+- New underwater (drawdown-duration) chart in the Backtest Lab — days since last equity high, with a max-duration badge.
+- Glossary expanded 274 → 327 terms across 7 categories (53 new terms covering stochastic calculus, exotic options, sovereign bonds, behavioral finance, macro regimes, and backtesting pitfalls).
+- Dev server is running on port 3000 and serving HTTP 200.
+
+Unresolved issues / risks:
+- Memory: the 4 GB / no-swap Kata sandbox continues to OOM-kill next-server when Chrome (agent-browser) renders heavy chart views. Recommend the next cron round avoid simultaneous Chrome + dev server; rely on curl/API verification.
+- The glossary has 327 of the paper's 900+ — could keep expanding toward 400+.
+- Real market data is not wired (synthetic GBM by design — educational).
+- Recommended next steps for the next cron round: (a) add a strategy-relationship network graph visualization (full graph view); (b) add a "trending strategies" section based on most-viewed across sessions; (c) add a volatility smile/skew visualization in the Options Lab (implied vol across strikes); (d) add more glossary terms (toward 400+); (e) add a rolling Sharpe ratio chart; (f) add an interactive payoff diagram where the user can drag the spot line.

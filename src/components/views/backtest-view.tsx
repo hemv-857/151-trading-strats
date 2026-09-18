@@ -308,6 +308,29 @@ export function BacktestView() {
                 </ChartContainer>
               </Card>
 
+              {/* Underwater (drawdown duration) chart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Icons.Waves className="h-3.5 w-3.5 text-cyan-400" /> Underwater Curve
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Days since the last equity high — how long the strategy stays "underwater"</p>
+                  </div>
+                  <Badge variant="outline" className="text-cyan-400 border-cyan-500/30 font-mono text-[10px]">
+                    Max: {(() => {
+                      let peak = result.equity[0].equity, sincePeak = 0, maxUnderwater = 0;
+                      for (const e of result.equity) {
+                        if (e.equity >= peak) { peak = e.equity; sincePeak = 0; }
+                        else { sincePeak++; if (sincePeak > maxUnderwater) maxUnderwater = sincePeak; }
+                      }
+                      return maxUnderwater;
+                    })()} days
+                  </Badge>
+                </div>
+                <UnderwaterChart equity={result.equity} />
+              </Card>
+
               {/* Monthly returns heatmap + return distribution */}
               <div className="grid lg:grid-cols-2 gap-4">
                 <Card className="p-4">
@@ -811,5 +834,40 @@ function PACFChart({ equity }: { equity: BacktestResult["equity"] }) {
         <span className="font-mono">95% CI: ±{data.ci.toFixed(3)}</span>
       </div>
     </div>
+  );
+}
+
+// Underwater (drawdown duration) chart — days since last equity high
+function UnderwaterChart({ equity }: { equity: BacktestResult["equity"] }) {
+  const data = React.useMemo(() => {
+    let peak = equity[0].equity;
+    let sincePeak = 0;
+    return equity.map((e) => {
+      if (e.equity >= peak) {
+        peak = e.equity;
+        sincePeak = 0;
+      } else {
+        sincePeak++;
+      }
+      return { date: e.date, days: sincePeak };
+    });
+  }, [equity]);
+
+  return (
+    <ChartContainer config={{ days: { label: "Days Underwater", color: "var(--chart-2)" } }} className="aspect-[3/1] w-full">
+      <AreaChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+        <defs>
+          <linearGradient id="underwaterFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="oklch(0.65 0.17 220)" stopOpacity={0.45} />
+            <stop offset="100%" stopColor="oklch(0.65 0.17 220)" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => String(v).slice(0, 7)} interval="preserveStartEnd" minTickGap={40} stroke="var(--muted-foreground)" />
+        <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${v}d`} stroke="var(--muted-foreground)" width={36} />
+        <ChartTooltip content={<ChartTooltipContent />} formatter={(v: any) => [`${v} days`, "Underwater"]} />
+        <Area dataKey="days" type="monotone" stroke="oklch(0.65 0.17 220)" strokeWidth={1.5} fill="url(#underwaterFill)" />
+      </AreaChart>
+    </ChartContainer>
   );
 }
