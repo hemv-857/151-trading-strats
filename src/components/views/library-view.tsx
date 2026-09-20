@@ -47,10 +47,10 @@ export function LibraryView() {
   }, [libraryCategory, librarySearch, typeFilter, sort, libraryFavoritesOnly, favorites]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Sticky controls */}
-      <div className="sticky top-[6.25rem] z-30 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="px-4 sm:px-6 py-3 space-y-3">
+      <div className="sticky top-0 z-30 bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="px-4 sm:px-6 pt-0 pb-2.5 space-y-2.5">
           {/* Search + sort row */}
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
