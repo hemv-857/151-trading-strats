@@ -31,6 +31,8 @@ export function BacktestView() {
   const [params, setParams] = React.useState<Record<string, number>>({});
   const [result, setResult] = React.useState<BacktestResult | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [useRealData, setUseRealData] = React.useState(false);
+  const [symbol, setSymbol] = React.useState("SPY");
 
   // Initialize params when strategy changes
   React.useEffect(() => {
@@ -43,21 +45,25 @@ export function BacktestView() {
   const runBacktest = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/backtest", {
+      const endpoint = useRealData ? "/api/backtest-real?XTransformPort=3001" : "/api/backtest";
+      const body = useRealData
+        ? { strategyId: selectedId, params, symbol }
+        : { strategyId: selectedId, params };
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ strategyId: selectedId, params }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const data = (await res.json()) as BacktestResult;
       setResult(data);
-      toast.success(`Backtest complete · ${(data.metrics.totalReturn * 100).toFixed(1)}% return`);
+      toast.success(`Backtest complete · ${(data.metrics.totalReturn * 100).toFixed(1)}% return${useRealData ? ` on ${symbol}` : ""}`);
     } catch (e: any) {
       toast.error(e?.message || "Backtest failed");
     } finally {
       setLoading(false);
     }
-  }, [selectedId, params]);
+  }, [selectedId, params, useRealData, symbol]);
 
   // Auto-run on first load / strategy change
   React.useEffect(() => {
@@ -78,6 +84,33 @@ export function BacktestView() {
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">{def.description}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Real data toggle */}
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+              <button
+                onClick={() => { setUseRealData(false); }}
+                className={cn("text-[11px] font-medium transition-colors", !useRealData ? "text-primary" : "text-muted-foreground")}
+              >
+                Synthetic
+              </button>
+              <span className="text-muted-foreground/30">/</span>
+              <button
+                onClick={() => { setUseRealData(true); }}
+                className={cn("text-[11px] font-medium transition-colors", useRealData ? "text-emerald-400" : "text-muted-foreground")}
+              >
+                Real Data
+              </button>
+            </div>
+            {useRealData && (
+              <select
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+              >
+                {["SPY","QQQ","IWM","DIA","AAPL","MSFT","GOOGL","AMZN","TSLA","NVDA","META","JPM","BAC","XOM","CVX","GLD","TLT","XLE","XLF","XLK"].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
             <Button onClick={runBacktest} disabled={loading} className="gap-2">
               {loading ? <Icons.Loader2 className="h-4 w-4 animate-spin" /> : <Icons.Play className="h-4 w-4" />}
               {loading ? "Running…" : "Run Backtest"}
