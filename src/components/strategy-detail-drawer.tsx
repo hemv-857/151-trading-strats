@@ -163,15 +163,28 @@ export function StrategyDetailDrawer() {
             <p className="text-sm leading-relaxed text-foreground/90">{strategy.description}</p>
           </section>
 
-          {/* Formula */}
-          {strategy.formula && (
+          {/* Formula & Methodology */}
+          {(strategy.formula || strategy.methodology) && (
             <section>
               <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                <Icons.Sigma className="h-3 w-3" /> Formula
+                <Icons.Sigma className="h-3 w-3" /> Mathematics &amp; Methodology
               </h3>
-              <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 font-mono text-sm text-foreground overflow-x-auto">
-                {strategy.formula}
-              </div>
+              {strategy.formula && (
+                <div className="mb-2">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">Formula</div>
+                  <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 font-mono text-sm text-foreground overflow-x-auto">
+                    {strategy.formula}
+                  </div>
+                </div>
+              )}
+              {strategy.methodology && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">Methodology</div>
+                  <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-xs text-foreground/80 leading-relaxed">
+                    {strategy.methodology}
+                  </div>
+                </div>
+              )}
             </section>
           )}
 

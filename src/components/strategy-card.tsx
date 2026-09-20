@@ -148,6 +148,12 @@ export function StrategyCard({ strategy, variant = "default", index = 0 }: Strat
             BT
           </Badge>
         )}
+        {(strategy.formula || strategy.methodology) && (
+          <Badge variant="outline" className="text-[9px] py-0 h-5 gap-1 bg-violet-500/10 text-violet-400 border-violet-500/30" title="Has mathematical formula or methodology">
+            <Icons.Sigma className="h-2.5 w-2.5" />
+            ƒ
+          </Badge>
+        )}
       </div>
 
       {/* Footer: risk / complexity */}
