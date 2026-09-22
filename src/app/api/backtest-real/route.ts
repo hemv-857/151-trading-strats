@@ -49,10 +49,15 @@ export async function POST(req: NextRequest) {
     if (timestamps.length === 0) {
       return NextResponse.json({ error: `No price data for ${symbol}` }, { status: 404 });
     }
-    // Build prices array, drop nulls
+    // Build prices array, drop nulls and deduplicate by date
+    const seen = new Set<string>();
     const allPrices = timestamps
       .map((ts: number, i: number) => ({ date: new Date(ts * 1000).toISOString().slice(0, 10), price: closes[i] }))
-      .filter((p: any) => p.price != null && isFinite(p.price));
+      .filter((p: any) => {
+        if (p.price == null || !isFinite(p.price) || seen.has(p.date)) return false;
+        seen.add(p.date);
+        return true;
+      });
 
     if (!allPrices || allPrices.length === 0) {
       return NextResponse.json({ error: `No price data for ${symbol}` }, { status: 404 });

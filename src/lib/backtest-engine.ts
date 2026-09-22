@@ -182,7 +182,7 @@ export function rollingStd(prices: number[], window: number): (number | null)[] 
     let s = 0;
     const m = means[i]!;
     for (let j = i - window + 1; j <= i; j++) s += (prices[j] - m) ** 2;
-    out[i] = Math.sqrt(s / window);
+    out[i] = Math.sqrt(s / (window - 1));
   }
   return out;
 }

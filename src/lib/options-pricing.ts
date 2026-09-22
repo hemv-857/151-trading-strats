@@ -81,6 +81,16 @@ export function bsVega(S: number, K: number, T: number, r: number, sigma: number
   return S * Math.sqrt(T) * Math.exp(-d1 * d1 / 2) / Math.sqrt(2 * Math.PI) / 100;
 }
 
+export function bsRho(type: OptionType, S: number, K: number, T: number, r: number, sigma: number): number {
+  if (T <= 0 || sigma <= 0) return 0;
+  const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+  const d2 = d1 - sigma * Math.sqrt(T);
+  if (type === "call") {
+    return K * T * Math.exp(-r * T) * normCdf(d2) / 100;
+  }
+  return -K * T * Math.exp(-r * T) * normCdf(-d2) / 100;
+}
+
 export function bsTheta(type: OptionType, S: number, K: number, T: number, r: number, sigma: number): number {
   if (T <= 0 || sigma <= 0) return 0;
   const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
@@ -170,10 +180,11 @@ export interface StrategyGreeks {
   gamma: number;
   vega: number;
   theta: number;
+  rho: number;
 }
 
 export function strategyGreeks(strategy: OptionsStrategy, S: number, T: number, r: number, sigma: number): StrategyGreeks {
-  let delta = 0, gamma = 0, vega = 0, theta = 0;
+  let delta = 0, gamma = 0, vega = 0, theta = 0, rho = 0;
   for (const leg of strategy.legs) {
     const sign = leg.action === "buy" ? 1 : -1;
     const qty = leg.quantity * 100; // 1 contract = 100 shares
@@ -181,12 +192,13 @@ export function strategyGreeks(strategy: OptionsStrategy, S: number, T: number, 
     gamma += sign * qty * bsGamma(S, leg.strike, T, r, sigma);
     vega += sign * qty * bsVega(S, leg.strike, T, r, sigma);
     theta += sign * qty * bsTheta(leg.type, S, leg.strike, T, r, sigma);
+    rho += sign * qty * bsRho(leg.type, S, leg.strike, T, r, sigma);
   }
   if (strategy.stock) {
     const sign = strategy.stock.action === "buy" ? 1 : -1;
     delta += sign * strategy.stock.shares;
   }
-  return { delta, gamma, vega, theta };
+  return { delta, gamma, vega, theta, rho };
 }
 
 // ----- Preset options strategies -----
@@ -501,7 +513,7 @@ export function blackScholesGreeks(params: { S: number; K: number; T: number; r:
     gamma: bsGamma(params.S, params.K, params.T, params.r, params.sigma),
     vega: bsVega(params.S, params.K, params.T, params.r, params.sigma),
     theta: bsTheta(type, params.S, params.K, params.T, params.r, params.sigma),
-    rho: 0, // Not computed by bs functions
+    rho: bsRho(type, params.S, params.K, params.T, params.r, params.sigma),
   };
 }
 

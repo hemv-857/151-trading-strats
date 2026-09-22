@@ -29,9 +29,14 @@ export async function GET(req: NextRequest) {
     const raw = await res.json();
     const timestamps: number[] = raw?.chart?.result?.[0]?.timestamp ?? [];
     const closes: number[] = raw?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+    const seen = new Set<string>();
     const prices = timestamps
       .map((ts: number, i: number) => ({ date: new Date(ts * 1000).toISOString().slice(0, 10), price: closes[i] }))
-      .filter((p: any) => p.price != null && isFinite(p.price));
+      .filter((p: any) => {
+        if (p.price == null || !isFinite(p.price) || seen.has(p.date)) return false;
+        seen.add(p.date);
+        return true;
+      });
     return NextResponse.json({ prices });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Failed to fetch market data", prices: [] }, { status: 502 });
