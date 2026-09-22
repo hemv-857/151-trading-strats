@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(strategies) || strategies.length === 0 || strategies.length > 3) {
       return NextResponse.json({ error: "Provide 1-3 strategies to compare" }, { status: 400 });
     }
-    const results = [];
+    const results: { strategyId: string; strategyName?: string; error?: string; metrics?: any; equity?: any; params?: any }[] = [];
     for (const { strategyId, params } of strategies) {
       const def = getBacktestDef(strategyId);
       if (!def) {
