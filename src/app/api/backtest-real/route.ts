@@ -34,22 +34,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Unknown strategy: ${strategyId}` }, { status: 404 });
     }
 
-    // Fetch real price history from yfinance service
+    // Fetch real price history from Yahoo Finance directly
     const bars = Math.min(Math.max(Math.floor(params?.bars ?? 500), 50), 2000);
     const period = bars <= 100 ? "6mo" : bars <= 250 ? "1y" : bars <= 500 ? "2y" : "5y";
-    const yfRes = await fetch(
-      `http://localhost:3001/api/history?symbol=${encodeURIComponent(symbol)}&period=${period}`,
-      { cache: "no-store" }
-    );
-    if (!yfRes.ok) throw new Error(`yfinance service returned ${yfRes.status}`);
-    const yfData = await yfRes.json();
+    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${period}&interval=1d`;
+    const yfRes = await fetch(yfUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      cache: "no-store",
+    });
+    if (!yfRes.ok) throw new Error(`Yahoo Finance returned ${yfRes.status}`);
+    const yfRaw = await yfRes.json();
+    const timestamps: number[] = yfRaw?.chart?.result?.[0]?.timestamp ?? [];
+    const closes: number[] = yfRaw?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+    if (timestamps.length === 0) {
+      return NextResponse.json({ error: `No price data for ${symbol}` }, { status: 404 });
+    }
+    // Build prices array, drop nulls
+    const allPrices = timestamps
+      .map((ts: number, i: number) => ({ date: new Date(ts * 1000).toISOString().slice(0, 10), price: closes[i] }))
+      .filter((p: any) => p.price != null && isFinite(p.price));
 
-    if (!yfData.prices || yfData.prices.length === 0) {
+    if (!allPrices || allPrices.length === 0) {
       return NextResponse.json({ error: `No price data for ${symbol}` }, { status: 404 });
     }
 
     // Take the last `bars` data points
-    const allPrices = yfData.prices;
     const startIdx = Math.max(0, allPrices.length - bars);
     const realPrices = allPrices.slice(startIdx).map((p: any) => p.price);
 

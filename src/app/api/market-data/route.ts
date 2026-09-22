@@ -20,13 +20,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: `Invalid symbol: ${symbol}`, prices: [] }, { status: 400 });
     }
 
-    const res = await fetch(
-      `http://localhost:3001/api/history?symbol=${encodeURIComponent(symbol)}&period=${encodeURIComponent(period)}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) throw new Error(`yfinance service returned ${res.status}`);
-    const data = await res.json();
-    return NextResponse.json(data);
+    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${encodeURIComponent(period)}&interval=1d`;
+    const res = await fetch(yfUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Yahoo Finance returned ${res.status}`);
+    const raw = await res.json();
+    const timestamps: number[] = raw?.chart?.result?.[0]?.timestamp ?? [];
+    const closes: number[] = raw?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+    const prices = timestamps
+      .map((ts: number, i: number) => ({ date: new Date(ts * 1000).toISOString().slice(0, 10), price: closes[i] }))
+      .filter((p: any) => p.price != null && isFinite(p.price));
+    return NextResponse.json({ prices });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Failed to fetch market data", prices: [] }, { status: 502 });
   }
