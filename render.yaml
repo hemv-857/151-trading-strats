@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: 151-trading-strats
+    runtime: image
+    image:
+      url: docker.io/library/node:20-alpine
+    envVars:
+      - key: NODE_ENV
+        value: production
+    dockerfilePath: Dockerfile.render
+    healthCheckPath: /api/health
+    autoDeploy: true

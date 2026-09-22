@@ -1,5 +1,10 @@
 # 151 Trading Strategies — Quant Research Terminal
 
+[![Deployed on Vercel](https://img.shields.io/badge/Vercel-live-brightgreen)](https://151-trading-strats.vercel.app)
+[![Deployed on Render](https://img.shields.io/badge/Render-live-blue)](https://one51-trading-strats.onrender.com)
+
+**Live:** [Vercel](https://151-trading-strats.vercel.app) | [Render](https://one51-trading-strats.onrender.com)
+
 An interactive companion to the paper **"151 Trading Strategies"** by Zura Kakushadze and Juan Andrey Serur (2018, [SSRN #3247865](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3247865)).
 
 > **Reference:** Kakushadze, Z. & Serur, J.A. (2018). "151 Trading Strategies." *The Journal of Trading*, 13(4), pp. 26-46. Available at SSRN: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3247865
