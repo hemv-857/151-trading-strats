@@ -587,8 +587,8 @@ function exportChartPNG(containerId: string, filename: string) {
   img.onload = () => {
     const canvas = document.createElement("canvas");
     const scale = 2; // retina-quality
-    const w = img.width.baseVal.value || 800;
-    const h = img.height.baseVal.value || 400;
+    const w = img.naturalWidth || 800;
+    const h = img.naturalHeight || 400;
     canvas.width = w * scale;
     canvas.height = h * scale;
     const ctx = canvas.getContext("2d");
