@@ -628,7 +628,7 @@ function MonthlyHeatmap({ equity }: { equity: BacktestResult["equity"] }) {
                       <td key={mIdx} className="p-0.5 text-center">
                         <div
                           className="h-6 rounded-sm flex items-center justify-center text-[9px] font-semibold transition-transform hover:scale-110 cursor-default"
-                          style={{ backgroundColor: colorFor(ret) }}
+                          style={{ backgroundColor: colorFor(ret ?? null) }}
                           title={ret !== null && ret !== undefined ? `${year} ${MONTHS[mIdx]}: ${(ret * 100).toFixed(2)}%` : ""}
                         >
                           {ret !== null && ret !== undefined ? `${ret >= 0 ? "+" : ""}${(ret * 100).toFixed(1)}` : "—"}
