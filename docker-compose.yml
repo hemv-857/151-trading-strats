@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  # Next.js Frontend
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./db/custom.db
+      - NEXT_PUBLIC_YFINANCE_URL=http://yfinance:3001
+    volumes:
+      - ./db:/app/db
+      - ./public:/app/public:ro
+    depends_on:
+      - yfinance
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # yfinance Python Service
+  yfinance:
+    build:
+      context: ./mini-services/yfinance-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - PYTHONUNBUFFERED=1
+      - ALLOWED_ORIGINS=http://localhost:3000,http://app:3000
+    volumes:
+      - yfinance_cache:/app/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  yfinance_cache:

@@ -56,7 +56,7 @@ export interface PriceSeries {
 }
 
 // Mulberry32 seeded PRNG for reproducibility
-function mulberry32(seed: number) {
+export function mulberry32(seed: number) {
   return function () {
     let t = (seed += 0x6d2b79f5);
     t = Math.imul(t ^ (t >>> 15), t | 1);
@@ -66,7 +66,7 @@ function mulberry32(seed: number) {
 }
 
 // Box-Muller transform for standard normal
-function gaussian(rand: () => number) {
+export function gaussian(rand: () => number) {
   let u = 0, v = 0;
   while (u === 0) u = rand();
   while (v === 0) v = rand();
@@ -296,7 +296,7 @@ interface BaseParams {
   initialCapital: number;
 }
 
-function computeMetrics(equityCurve: number[], benchmark: number[], trades: TradeRecord[], periods: number): BacktestMetrics {
+export function computeMetrics(equityCurve: number[], benchmark: number[], trades: TradeRecord[], periods: number): BacktestMetrics {
   const n = equityCurve.length;
   const totalReturn = equityCurve[n - 1] / equityCurve[0] - 1;
   const benchmarkReturn = benchmark[n - 1] / benchmark[0] - 1;
@@ -345,7 +345,7 @@ function computeMetrics(equityCurve: number[], benchmark: number[], trades: Trad
   };
 }
 
-function runPositionStrategy(
+export function runPositionStrategy(
   prices: number[],
   dates: string[],
   positions: number[], // -1..1 per bar

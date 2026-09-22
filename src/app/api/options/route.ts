@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
     }
 
     const spotVal = Number(spot) || 100;
-    const volVal = Number(vol) || 0.2;
-    const tVal = Number(T) || 0.25;
-    const rVal = Number(r) || 0.03;
+    const volVal = Math.max(0.01, Math.min(Number(vol) || 0.2, 5));
+    const tVal = Math.max(0.01, Math.min(Number(T) || 0.25, 10));
+    const rVal = Math.max(-0.5, Math.min(Number(r) || 0.03, 1));
 
     const curve = buildPayoffCurve(strategy, spotVal, { rangePct: 0.4, steps: 81 });
     const greeks = strategyGreeks(strategy, spotVal, tVal, rVal, volVal);

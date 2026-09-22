@@ -53,8 +53,9 @@ export function BacktestCompareView() {
           })),
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      const data = (await res.json()) as { results: CompareResult[] };
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Compare failed");
+      const data = json as { results: CompareResult[] };
       setResults(data.results);
       toast.success(`Compared ${data.results.length} strategies`);
     } catch (e: any) {

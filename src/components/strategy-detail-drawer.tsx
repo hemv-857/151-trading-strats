@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as Icons from "lucide-react";
-import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAppStore } from "@/lib/store";
 import { getStrategyById, getRelatedStrategies, CATEGORY_COLORS, MARKET_VIEW_META, STRATEGY_TYPE_META, ASSET_CLASS_MAP, AssetClassId } from "@/lib/strategies-data";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +121,7 @@ export function StrategyDetailDrawer() {
     <Sheet open={detailOpen} onOpenChange={(o) => !o && closeDetail()}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border bg-card/50">
+          <SheetTitle className="sr-only">{strategy.name}</SheetTitle>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", colors.bg)}>

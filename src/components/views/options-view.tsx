@@ -72,8 +72,9 @@ export function OptionsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      setResp(await res.json());
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Options calc failed");
+      setResp(json);
     } catch (e: any) {
       toast.error(e?.message || "Options calc failed");
     } finally {

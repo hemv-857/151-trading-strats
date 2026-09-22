@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBacktestDef } from "@/lib/backtest-engine";
+import { getBacktestDef, sma, ema, rsi, rollingStd } from "@/lib/backtest-engine";
 
 export const dynamic = "force-dynamic";
+
+const ALLOWED_SYMBOLS = new Set([
+  "SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA",
+  "META", "JPM", "BAC", "XOM", "CVX", "GLD", "SLV", "TLT", "HYG", "XLE",
+  "XLF", "XLK", "XLV", "XLY", "XLP", "XLB", "XLI", "XLU", "XLRE", "XLC",
+]);
 
 // POST /api/backtest-real
 // Body: { strategyId, params, symbol }
@@ -19,13 +25,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "strategyId is required" }, { status: 400 });
     }
 
+    if (!ALLOWED_SYMBOLS.has(symbol)) {
+      return NextResponse.json({ error: `Invalid symbol: ${symbol}` }, { status: 400 });
+    }
+
     const def = getBacktestDef(strategyId);
     if (!def) {
       return NextResponse.json({ error: `Unknown strategy: ${strategyId}` }, { status: 404 });
     }
 
     // Fetch real price history from yfinance service
-    const bars = params?.bars ?? 500;
+    const bars = Math.min(Math.max(Math.floor(params?.bars ?? 500), 50), 2000);
     const period = bars <= 100 ? "6mo" : bars <= 250 ? "1y" : bars <= 500 ? "2y" : "5y";
     const yfRes = await fetch(
       `http://localhost:3001/api/history?symbol=${encodeURIComponent(symbol)}&period=${period}`,
@@ -128,44 +138,6 @@ function runStrategyOnRealPrices(
 function computePositions(strategyId: string, prices: number[], params: Record<string, number>): number[] {
   const n = prices.length;
   const positions = new Array(n).fill(0);
-
-  // Import indicator functions inline (simplified)
-  const sma = (arr: number[], w: number) => {
-    const out = new Array(arr.length).fill(null);
-    let sum = 0;
-    for (let i = 0; i < arr.length; i++) { sum += arr[i]; if (i >= w) sum -= arr[i - w]; if (i >= w - 1) out[i] = sum / w; }
-    return out;
-  };
-  const ema = (arr: number[], w: number) => {
-    const out = new Array(arr.length).fill(null);
-    const k = 2 / (w + 1); let prev: number | null = null; let sum = 0;
-    for (let i = 0; i < arr.length; i++) {
-      sum += arr[i];
-      if (i === w - 1) { prev = sum / w; out[i] = prev; }
-      else if (i >= w) { prev = arr[i] * k + (prev as number) * (1 - k); out[i] = prev; }
-    }
-    return out;
-  };
-  const rollingStd = (arr: number[], w: number) => {
-    const out = new Array(arr.length).fill(null);
-    const means = sma(arr, w);
-    for (let i = w - 1; i < arr.length; i++) { let s = 0; const m = means[i]!; for (let j = i - w + 1; j <= i; j++) s += (arr[j] - m) ** 2; out[i] = Math.sqrt(s / w); }
-    return out;
-  };
-  const rsi = (arr: number[], w: number) => {
-    const out = new Array(arr.length).fill(null);
-    if (arr.length <= w) return out;
-    let gains = 0, losses = 0;
-    for (let i = 1; i <= w; i++) { const ch = arr[i] - arr[i - 1]; if (ch >= 0) gains += ch; else losses -= ch; }
-    let avgGain = gains / w, avgLoss = losses / w;
-    out[w] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    for (let i = w + 1; i < arr.length; i++) {
-      const ch = arr[i] - arr[i - 1]; const g = ch > 0 ? ch : 0; const l = ch < 0 ? -ch : 0;
-      avgGain = (avgGain * (w - 1) + g) / w; avgLoss = (avgLoss * (w - 1) + l) / w;
-      out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    }
-    return out;
-  };
 
   switch (strategyId) {
     case "single-moving-average": {

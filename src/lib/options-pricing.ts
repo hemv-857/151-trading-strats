@@ -93,14 +93,13 @@ export function bsTheta(type: OptionType, S: number, K: number, T: number, r: nu
 }
 
 // Payoff at expiry for a single leg (per share, excluding premium cost)
-function legPayoffAtExpiry(leg: OptionLeg, S: number): number {
+export function legPayoffAtExpiry(leg: OptionLeg, S: number): number {
   const intrinsic = leg.type === "call" ? Math.max(S - leg.strike, 0) : Math.max(leg.strike - S, 0);
   const sign = leg.action === "buy" ? 1 : -1;
   // Premium: buy pays premium (cost), sell receives premium (income)
   return sign * (intrinsic - leg.premium) * leg.quantity;
 }
 
-// Total payoff at expiry for a strategy
 export function strategyPayoffAtExpiry(strategy: OptionsStrategy, S: number): number {
   let payoff = strategy.legs.reduce((sum, leg) => sum + legPayoffAtExpiry(leg, S), 0);
   if (strategy.stock) {
@@ -482,4 +481,49 @@ export const OPTION_PRESETS: { id: string; name: string; marketView: string; des
 
 export function getPresetById(id: string) {
   return OPTION_PRESETS.find((p) => p.id === id);
+}
+
+// Wrapper exports for test compatibility
+export const OPTIONS_PRESETS = OPTION_PRESETS;
+
+export function getPreset(id: string) {
+  return getPresetById(id);
+}
+
+export function blackScholes(params: { S: number; K: number; T: number; r: number; sigma: number; isCall: boolean }): number {
+  return bsPrice(params.isCall ? "call" : "put", params.S, params.K, params.T, params.r, params.sigma);
+}
+
+export function blackScholesGreeks(params: { S: number; K: number; T: number; r: number; sigma: number; isCall: boolean }) {
+  const type = params.isCall ? "call" : "put";
+  return {
+    delta: bsDelta(type, params.S, params.K, params.T, params.r, params.sigma),
+    gamma: bsGamma(params.S, params.K, params.T, params.r, params.sigma),
+    vega: bsVega(params.S, params.K, params.T, params.r, params.sigma),
+    theta: bsTheta(type, params.S, params.K, params.T, params.r, params.sigma),
+    rho: 0, // Not computed by bs functions
+  };
+}
+
+export function computePayoffAtExpiry(S: number, legs: OptionLeg[], stockPrice: number): number {
+  let payoff = legs.reduce((sum, leg) => sum + legPayoffAtExpiry(leg, S), 0);
+  if (stockPrice > 0) {
+    payoff += (S - stockPrice); // stock leg assumed buy 1 share
+  }
+  return payoff;
+}
+
+export function findBreakevens(legs: OptionLeg[], stockPrice = 0): number[] {
+  // Use buildPayoffCurve with a temp strategy
+  const strategy: OptionsStrategy = {
+    id: "temp",
+    name: "temp",
+    category: "test",
+    marketView: "neutral",
+    description: "test",
+    legs,
+    stock: stockPrice > 0 ? { action: "buy", shares: 1, price: stockPrice } : undefined,
+  };
+  const { breakevens } = buildPayoffCurve(strategy, 100, { rangePct: 0.5, steps: 200 });
+  return breakevens;
 }

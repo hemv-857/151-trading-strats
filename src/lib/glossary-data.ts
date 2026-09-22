@@ -586,3 +586,10 @@ export function searchGlossary(query: string): GlossaryTerm[] {
 export function getGlossaryByCategory(cat: GlossaryCategory): GlossaryTerm[] {
   return GLOSSARY.filter((t) => t.category === cat);
 }
+
+// Wrapper exports for test compatibility
+export const GLOSSARY_TERMS = GLOSSARY;
+
+export function getTermsByCategory(cat: string): GlossaryTerm[] {
+  return getGlossaryByCategory(cat as GlossaryCategory);
+}

@@ -45,7 +45,7 @@ export function BacktestView() {
   const runBacktest = React.useCallback(async () => {
     setLoading(true);
     try {
-      const endpoint = useRealData ? "/api/backtest-real?XTransformPort=3001" : "/api/backtest";
+      const endpoint = useRealData ? "/api/backtest-real" : "/api/backtest";
       const body = useRealData
         ? { strategyId: selectedId, params, symbol }
         : { strategyId: selectedId, params };
@@ -54,8 +54,9 @@ export function BacktestView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      const data = (await res.json()) as BacktestResult;
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Backtest failed");
+      const data = json as BacktestResult;
       setResult(data);
       toast.success(`Backtest complete · ${(data.metrics.totalReturn * 100).toFixed(1)}% return${useRealData ? ` on ${symbol}` : ""}`);
     } catch (e: any) {

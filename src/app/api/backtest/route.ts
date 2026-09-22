@@ -17,9 +17,12 @@ export async function POST(req: NextRequest) {
     if (!def) {
       return NextResponse.json({ error: `Unknown strategy: ${strategyId}` }, { status: 404 });
     }
-    // Merge defaults with provided params
+    // Merge defaults with provided params, clamping to defined bounds
     const merged: Record<string, number> = {};
-    for (const p of def.params) merged[p.key] = params?.[p.key] ?? p.default;
+    for (const p of def.params) {
+      const val = params?.[p.key] ?? p.default;
+      merged[p.key] = Math.min(Math.max(val, p.min ?? -1e6), p.max ?? 1e6);
+    }
     const result = def.run(merged);
     return NextResponse.json(result);
   } catch (e: any) {
