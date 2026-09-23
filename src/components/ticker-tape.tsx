@@ -31,7 +31,7 @@ export function TickerTape() {
 
     async function fetchQuotes() {
       try {
-        const res = await fetch("/api/quotes?XTransformPort=3001");
+        const res = await fetch("/api/quotes");
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled || !data.quotes) return;
